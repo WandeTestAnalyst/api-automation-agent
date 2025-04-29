@@ -258,14 +258,14 @@ Contributions are welcome! Here's how you can help:
 
 ### Finding Tasks to Work On
 
-We maintain a [project board](https://github.com/users/damianpereira86/projects/1/views/1) to track features, enhancements, and bugs. Each task in the board includes:
+We maintain a [project board](https://github.com/orgs/TestCraft-App/projects/1/views/1) to track features, enhancements, and bugs. Each task in the board includes:
 
 - Task descriptions
 - Priority
 - Complexity
 - Size
 
-New contributors can check out our ["Good First Issues"](https://github.com/users/damianpereira86/projects/1/views/7) view for beginner-friendly tasks to get started with.
+New contributors can check out our ["Good First Issues"](https://github.com/orgs/TestCraft-App/projects/1/views/7) view for beginner-friendly tasks to get started with.
 
 ### Contribution Process
 
