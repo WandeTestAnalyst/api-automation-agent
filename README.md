@@ -21,7 +21,7 @@ An open-source AI Agent that automatically generates an automation framework fro
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/api-automation-agent.git
+   git clone https://github.com/TestCraft-App/api-automation-agent.git
    cd api-automation-agent
    ```
 
