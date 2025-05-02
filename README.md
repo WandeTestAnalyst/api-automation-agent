@@ -59,21 +59,20 @@ This project supports both Anthropic and OpenAI language models:
 
   - Claude 3.7 Sonnet (claude-3-7-sonnet-latest)
   - Claude 3.5 Sonnet (claude-3-5-sonnet-latest)
-  - Claude 3.5 Haiku (claude-3-5-haiku-latest)
 
 **OpenAI**
 
   - GPT-4o (gpt-4o)
-  - GPT-4o Mini (gpt-4o-mini)
-  - GPT-4 Turbo (gpt-4-turbo)
-  - O1 Preview (o1-preview)
-  - O1 Mini (o1-mini)
+  - GPT-4.1 (gpt-4.1)
+  - GPT-4.1 Mini (gpt-4.1-mini)
+  - O3 (o3)
   - O3 Mini (o3-mini)
+  - O4 Mini (o4-mini)
 
 You can configure your preferred model in the `.env` file:
 
 ```env
-MODEL=o3-mini
+MODEL=o4-mini
 ```
 
 ## Usage
