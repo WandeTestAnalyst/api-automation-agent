@@ -14,7 +14,7 @@ An open-source AI Agent that automatically generates an automation framework fro
 
 - Python 3.8 or higher
 - Node.js 18 or higher
-- OpenAI API key or Anthropic API key (Anthropic API key required by default)
+- Anthropic API key (Anthropic API key required by default), OpenAI API key or Google API key
 
 ## Installation
 
@@ -45,7 +45,7 @@ An open-source AI Agent that automatically generates an automation framework fro
 
 ## Large Language Models
 
-This project supports both Anthropic and OpenAI language models:
+This project supports Anthropic, OpenAI and Google language models:
 
 ### Default Model
 
@@ -68,6 +68,13 @@ This project supports both Anthropic and OpenAI language models:
   - O3 (o3)
   - O3 Mini (o3-mini)
   - O4 Mini (o4-mini)
+
+**Google**
+
+  - Gemini 2.5 Pro Preview (gemini-2.5-pro-preview-03-25")
+  - Gemini 2.5 Pro Experimiental (gemini-2.5-pro-exp-03-25)
+
+Note: Google models are experimental for the moment, and are not recommended for a production workload.  
 
 You can configure your preferred model in the `.env` file:
 
@@ -340,6 +347,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- OpenAI and Anthropic for their AI models
+- OpenAI, Google and Anthropic for their AI models
 - All contributors who have helped build and improve this project
 
