@@ -45,11 +45,11 @@ An open-source AI Agent that automatically generates an automation framework fro
 
 ## Large Language Models
 
-This project supports Anthropic, OpenAI and Google language models:
+This project supports Anthropic, OpenAI and Google language models. 
 
 ### Default Model
 
-**Claude 3.7 Sonnet** (claude-3-7-sonnet-latest) is the default and recommended model
+**Claude 3.7 Sonnet** (claude-3-7-sonnet-latest) is the default and recommended model for this agentic workflow.
 - Provides superior code generation and understanding
 - Offers the best balance of performance and cost
 
@@ -58,15 +58,12 @@ This project supports Anthropic, OpenAI and Google language models:
 **Anthropic**
 
   - Claude 3.7 Sonnet (claude-3-7-sonnet-latest)
-  - Claude 3.5 Sonnet (claude-3-5-sonnet-latest)
 
 **OpenAI**
 
   - GPT-4o (gpt-4o)
   - GPT-4.1 (gpt-4.1)
-  - GPT-4.1 Mini (gpt-4.1-mini)
   - O3 (o3)
-  - O3 Mini (o3-mini)
   - O4 Mini (o4-mini)
 
 **Google**
@@ -81,6 +78,8 @@ You can configure your preferred model in the `.env` file:
 ```env
 MODEL=o4-mini
 ```
+
+> **Important**: Before using any model, please check the current pricing and costs on the respective provider's website (Anthropic, OpenAI, or Google). Model costs can vary significantly and may impact your usage budget.
 
 ## Usage
 
@@ -347,6 +346,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- OpenAI, Google and Anthropic for their AI models
+- Anthropic, OpenAI and Google for their AI models
 - All contributors who have helped build and improve this project
 
