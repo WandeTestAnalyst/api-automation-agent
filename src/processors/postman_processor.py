@@ -206,18 +206,14 @@ class PostmanProcessor(APIProcessor):
     def _extract_verb_path_info(
         self, extracted_requests: List[Dict[str, Union[List, Dict, str]]]
     ) -> List[Dict[str, Union[Dict, str]]]:
-
+        distinct_paths_no_query_params = self.get_all_distinct_paths_no_query_params(extracted_requests)
         result = []
 
-        distinct_paths_no_query_params = self.get_all_distinct_paths_no_query_params(extracted_requests)
-
         for path_no_query_params in distinct_paths_no_query_params:
-
             verbs = []
             matching_full_paths = []
 
             for item in extracted_requests:
-
                 if item["path"].startswith(path_no_query_params):
                     matching_full_paths.append(item)
 
@@ -225,13 +221,10 @@ class PostmanProcessor(APIProcessor):
                         verbs.append(item["verb"])
 
             for verb in verbs:
-
                 all_query_params_on_verb_path = {}
-
                 all_body_attributes_on_verb_path = {}
 
                 for path_item in matching_full_paths:
-
                     if path_item["verb"] == verb:
 
                         if path_item["body"] is not None:
@@ -242,9 +235,7 @@ class PostmanProcessor(APIProcessor):
                         path_sliced_on_query_param_start = path_item["path"].split("?")
 
                         if len(path_sliced_on_query_param_start) > 1:
-
                             all_query_params = path_sliced_on_query_param_start[1].split("&")
-
                             if len(all_query_params) > 0:
                                 self._accumulate_query_params(all_query_params_on_verb_path, all_query_params)
 
