@@ -5,7 +5,7 @@ import json
 from typing import List, Dict, Any, Optional
 
 from src.processors.api_processor import APIProcessor
-from src.utils.constants import DataSource
+from src.configuration.data_sources import DataSource
 
 from .ai_tools.models.file_spec import FileSpec
 from .configuration.config import Config, GenerationOptions
@@ -33,9 +33,7 @@ class FrameworkGenerator:
         self.models_count = 0
         self.test_files_count = 0
         self.logger = Logger.get_logger(__name__)
-        self.checkpoint = Checkpoint(
-            self, "framework_generator", self.config.destination_folder
-        )
+        self.checkpoint = Checkpoint(self, "framework_generator", self.config.destination_folder)
 
         signal.signal(signal.SIGINT, self._handle_interrupt)
         signal.signal(signal.SIGTERM, self._handle_interrupt)
@@ -70,10 +68,8 @@ class FrameworkGenerator:
     def process_api_definition(self) -> List[Dict[str, Any]]:
         """Process the API definition file and return a list of API endpoints"""
         try:
-            self.logger.info(
-                f"\nProcessing API definition from {self.config.api_file_path}"
-            )
-            return self.api_processor.process_api_definition(self.config.api_file_path)
+            self.logger.info(f"\nProcessing API definition from {self.config.api_definition}")
+            return self.api_processor.process_api_definition(self.config.api_definition)
         except Exception as e:
             self._log_error("Error processing API definition", e)
             raise
@@ -82,9 +78,7 @@ class FrameworkGenerator:
     def setup_framework(self, api_definition):
         """Set up the framework environment"""
         try:
-            self.logger.info(
-                f"\nSetting up framework in {self.config.destination_folder}"
-            )
+            self.logger.info(f"\nSetting up framework in {self.config.destination_folder}")
             self.file_service.copy_framework_template(self.config.destination_folder)
             if self.config.data_source == DataSource.POSTMAN:
                 self.api_processor.update_framework_for_postman(
@@ -106,27 +100,6 @@ class FrameworkGenerator:
             self._log_error("Error creating .env file", e)
             raise
 
-    def _extract_base_url(self, api_spec):
-        """Extract base URL from OpenAPI specification"""
-        if "openapi" in api_spec and api_spec["openapi"].startswith("3."):
-            if (
-                "servers" in api_spec
-                and api_spec["servers"]
-                and "url" in api_spec["servers"][0]
-            ):
-                return api_spec["servers"][0]["url"]
-        elif "swagger" in api_spec and api_spec["swagger"].startswith("2."):
-            host = api_spec.get("host")
-            if host:
-                scheme = "https"
-                if "schemes" in api_spec and api_spec["schemes"]:
-                    scheme = api_spec["schemes"][0]
-
-                base_path = api_spec.get("basePath", "")
-                return f"{scheme}://{host}{base_path}"
-
-        return None
-
     @Checkpoint.checkpoint()
     def generate(
         self,
@@ -141,37 +114,24 @@ class FrameworkGenerator:
             api_paths = self.api_processor.get_api_paths(merged_api_definition_list)
             api_verbs = self.api_processor.get_api_verbs(merged_api_definition_list)
 
-            for path in self.checkpoint.checkpoint_iter(
-                api_paths, "generate_paths", all_generated_models
-            ):
+            for path in self.checkpoint.checkpoint_iter(api_paths, "generate_paths", all_generated_models):
                 models = self._generate_models(path)
                 all_generated_models["info"].append(
                     {
                         "path": self.api_processor.get_api_path_name(path),
-                        "files": [
-                            model["path"] + " - " + model["summary"] for model in models
-                        ],
+                        "files": [model["path"] + " - " + model["summary"] for model in models],
                         "models": models,
                     }
                 )
-                self.logger.debug(
-                    "Generated models for path: "
-                    + self.api_processor.get_api_path_name(path)
-                )
+                self.logger.debug("Generated models for path: " + self.api_processor.get_api_path_name(path))
 
             if generate_tests in (
                 GenerationOptions.MODELS_AND_FIRST_TEST,
                 GenerationOptions.MODELS_AND_TESTS,
             ):
-                for verb in self.checkpoint.checkpoint_iter(
-                    api_verbs, "generate_verbs"
-                ):
-                    service_related_to_verb = self.api_processor.get_api_verb_rootpath(
-                        verb
-                    )
-                    tests = self._generate_tests(
-                        verb, all_generated_models["info"], generate_tests
-                    )
+                for verb in self.checkpoint.checkpoint_iter(api_verbs, "generate_verbs"):
+                    service_related_to_verb = self.api_processor.get_api_verb_rootpath(verb)
+                    tests = self._generate_tests(verb, all_generated_models["info"], generate_tests)
                     for file in tests:
                         if self._is_response_file(file):
                             for model in all_generated_models["info"]:
@@ -197,9 +157,7 @@ class FrameworkGenerator:
             raise
 
     @Checkpoint.checkpoint()
-    def run_final_checks(
-        self, generate_tests: GenerationOptions
-    ) -> Optional[List[Dict[str, str]]]:
+    def run_final_checks(self, generate_tests: GenerationOptions) -> Optional[List[Dict[str, str]]]:
         """Run final checks like TypeScript compilation"""
         try:
 
@@ -224,17 +182,13 @@ class FrameworkGenerator:
             return True
         return False
 
-    def _generate_models(
-        self, api_definition: Dict[str, Any]
-    ) -> Optional[List[Dict[str, Any]]]:
+    def _generate_models(self, api_definition: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         """Process a path definition and generate models"""
         try:
             self.logger.info(
                 f"\nGenerating models for path: {self.api_processor.get_api_path_name(api_definition)}"
             )
-            models = self.llm_service.generate_models(
-                self.api_processor.get_api_path_content(api_definition)
-            )
+            models = self.llm_service.generate_models(self.api_processor.get_api_path_content(api_definition))
             if models:
                 self.models_count += len(models)
                 self._run_code_quality_checks(models, are_models=True)
@@ -260,24 +214,18 @@ class FrameworkGenerator:
     ) -> Optional[List[Dict[str, Any]]]:
         """Generate tests for a specific verb (HTTP method) in the API definition"""
         try:
-            relevant_models = self.api_processor.get_relevant_models(
-                api_verb, all_models
-            )
+            relevant_models = self.api_processor.get_relevant_models(api_verb, all_models)
             other_models = self.api_processor.get_other_models(api_verb, all_models)
             self.logger.info(
                 f"\nGenerating first test for path: {self.api_processor.get_api_verb_path(api_verb)} and verb: {self.api_processor.get_api_verb_name(api_verb)}"
             )
 
             if other_models:
-                additional_models: List[FileSpec] = (
-                    self.llm_service.get_additional_models(
-                        relevant_models,
-                        other_models,
-                    )
+                additional_models: List[FileSpec] = self.llm_service.get_additional_models(
+                    relevant_models,
+                    other_models,
                 )
-                self.logger.info(
-                    f"\nAdding additional models: {[model.path for model in additional_models]}"
-                )
+                self.logger.info(f"\nAdding additional models: {[model.path for model in additional_models]}")
                 relevant_models.extend(map(lambda x: x.to_json(), additional_models))
 
             tests = self.llm_service.generate_first_test(
@@ -342,9 +290,7 @@ class FrameworkGenerator:
 
             raise
 
-    def _run_code_quality_checks(
-        self, files: List[Dict[str, Any]], are_models: bool = False
-    ):
+    def _run_code_quality_checks(self, files: List[Dict[str, Any]], are_models: bool = False):
         """Run code quality checks including TypeScript compilation, linting, and formatting"""
         try:
 

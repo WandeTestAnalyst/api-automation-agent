@@ -25,7 +25,7 @@ class Config:
     generate: GenerationOptions = GenerationOptions.MODELS_AND_TESTS
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    api_file_path: str = ""
+    api_definition: str = ""
     data_source: str = ""
     destination_folder: str = ""
     endpoints: Optional[List[str]] = None

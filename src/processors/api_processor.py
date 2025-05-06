@@ -2,14 +2,12 @@ from abc import ABC, abstractmethod
 import json
 import yaml
 import logging
-from src.utils.constants import DataSource
+from src.configuration.data_sources import DataSource
 
 
 class APIProcessor(ABC):
     @staticmethod
-    def set_data_source(
-        api_file_path: str, logger: logging.Logger = None
-    ) -> DataSource:
+    def set_data_source(api_file_path: str, logger: logging.Logger = None) -> DataSource:
         """
         Determines the type of data source by reading and parsing the file.
 
@@ -20,6 +18,8 @@ class APIProcessor(ABC):
         Returns:
             DataSource: The detected data source type (SWAGGER or POSTMAN)
         """
+        if api_file_path.startswith("http"):
+            return DataSource.SWAGGER
         if api_file_path.endswith((".yml", ".yaml")):
             return DataSource.SWAGGER
 

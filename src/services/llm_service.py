@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import BaseTool
 from src.configuration.models import Model
-from src.utils.constants import DataSource
+from src.configuration.data_sources import DataSource
 
 from .file_service import FileService
 from ..configuration.config import Config
@@ -125,14 +125,10 @@ class LLMService:
             all_tools = tools or []
 
             llm = self._select_language_model(language_model)
-            prompt_template = ChatPromptTemplate.from_template(
-                self._load_prompt(prompt_path)
-            )
+            prompt_template = ChatPromptTemplate.from_template(self._load_prompt(prompt_path))
 
             if tools:
-                converted_tools = [
-                    convert_tool_for_model(tool, llm) for tool in all_tools
-                ]
+                converted_tools = [convert_tool_for_model(tool, llm) for tool in all_tools]
                 tool_choice = "auto"
                 if self.config.model.is_anthropic():
                     if must_use_tool:
@@ -140,9 +136,7 @@ class LLMService:
                 else:
                     if must_use_tool:
                         tool_choice = "required"
-                llm_with_tools = llm.bind_tools(
-                    converted_tools, tool_choice=tool_choice
-                )
+                llm_with_tools = llm.bind_tools(converted_tools, tool_choice=tool_choice)
             else:
                 llm_with_tools = llm
 
@@ -179,9 +173,7 @@ class LLMService:
         return json.loads(
             self.create_ai_chain(
                 PromptConfig.MODELS,
-                tools=[
-                    FileCreationTool(self.config, self.file_service, are_models=True)
-                ],
+                tools=[FileCreationTool(self.config, self.file_service, are_models=True)],
                 must_use_tool=True,
             ).invoke({"api_definition": api_definition})
         )
@@ -259,8 +251,6 @@ class LLMService:
 
         self.create_ai_chain(
             PromptConfig.FIX_TYPESCRIPT,
-            tools=[
-                FileCreationTool(self.config, self.file_service, are_models=are_models)
-            ],
+            tools=[FileCreationTool(self.config, self.file_service, are_models=are_models)],
             must_use_tool=True,
         ).invoke({"files": files, "messages": messages})

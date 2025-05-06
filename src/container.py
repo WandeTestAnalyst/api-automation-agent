@@ -23,6 +23,7 @@ class Container(containers.DeclarativeContainer):
     processors_adapter = providers.Container(
         ProcessorsAdapter,
         file_service=file_service,
+        config=config,
     )
 
     # CLI components

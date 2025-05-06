@@ -16,7 +16,7 @@ from src.test_controller import TestController
 from src.utils.checkpoint import Checkpoint
 from src.utils.logger import Logger
 from src.processors.swagger.endpoint_lister import EndpointLister
-from src.utils.constants import DataSource
+from src.configuration.data_sources import DataSource
 from src.processors.api_processor import APIProcessor
 
 
@@ -40,9 +40,7 @@ def main(
         def prompt_user_resume_previous_run():
             while True:
                 user_input = (
-                    input(
-                        "Info related to a previous run was found, would you like to resume? (y/n): "
-                    )
+                    input("Info related to a previous run was found, would you like to resume? (y/n): ")
                     .strip()
                     .lower()
                 )
@@ -50,25 +48,22 @@ def main(
                 if user_input in {"y", "n"}:
                     return user_input == "y"
 
-        data_source = APIProcessor.set_data_source(args.api_file_path, logger)
+        data_source = APIProcessor.set_data_source(args.api_definition, logger)
 
         if last_namespace != "default" and prompt_user_resume_previous_run():
             checkpoint.restore_last_namespace()
             args.destination_folder = last_namespace
 
         if args.use_existing_framework and not args.destination_folder:
-            raise ValueError(
-                "The destination folder parameter must be set when using an existing framework."
-            )
+            raise ValueError("The destination folder parameter must be set when using an existing framework.")
 
         config.update(
             {
                 "api_definition": args.api_definition,
-                "destination_folder": args.destination_folder
-                or config.destination_folder,
+                "destination_folder": args.destination_folder or config.destination_folder,
                 "endpoints": args.endpoints,
                 "generate": GenerationOptions(args.generate),
-                "data_source": APIProcessor.set_data_source(args.api_file_path, logger),
+                "data_source": APIProcessor.set_data_source(args.api_definition, logger),
                 "use_existing_framework": args.use_existing_framework,
                 "list_endpoints": args.list_endpoints,
             }
@@ -87,12 +82,10 @@ def main(
         container.api_processor.override(processor)
         framework_generator = container.framework_generator()
 
-        logger.info(f"\nAPI file path: {config.api_file_path}")
+        logger.info(f"\nAPI file path: {config.api_definition}")
         logger.info(f"Destination folder: {config.destination_folder}")
         logger.info(f"Use existing framework: {config.use_existing_framework}")
-        logger.info(
-            f"Endpoints: {', '.join(config.endpoints) if config.endpoints else 'All'}"
-        )
+        logger.info(f"Endpoints: {', '.join(config.endpoints) if config.endpoints else 'All'}")
         logger.info(f"Generate: {config.generate}")
         logger.info(f"Model: {config.model}")
         logger.info(f"List endpoints: {config.list_endpoints}")
@@ -140,7 +133,8 @@ if __name__ == "__main__":
 
     # Initialize containers
     config_adapter = ProdConfigAdapter() if env == Envs.PROD else DevConfigAdapter()
-    container = Container(config_adapter=config_adapter)
+    processors_adapter = ProcessorsAdapter(config=config_adapter.config)
+    container = Container(config_adapter=config_adapter, processors_adapter=processors_adapter)
 
     # Wire dependencies
     container.init_resources()
