@@ -132,17 +132,16 @@ class FrameworkGenerator:
                 for verb in self.checkpoint.checkpoint_iter(api_verbs, "generate_verbs"):
                     service_related_to_verb = self.api_processor.get_api_verb_rootpath(verb)
                     tests = self._generate_tests(verb, all_generated_models["info"], generate_tests)
-                    for file in tests:
-                        if self._is_response_file(file):
-                            for model in all_generated_models["info"]:
-                                if model["path"] == service_related_to_verb:
-                                    model["files"].append(file["path"])
-                                    model["models"].append(
-                                        {
-                                            "path": file["path"],
-                                            "fileContent": file["fileContent"],
-                                        }
-                                    )
+                    for file in filter(self._is_response_file, tests):
+                        for model in all_generated_models["info"]:
+                            if model["path"] == service_related_to_verb:
+                                model["files"].append(file["path"])
+                                model["models"].append(
+                                    {
+                                        "path": file["path"],
+                                        "fileContent": file["fileContent"],
+                                    }
+                                )
 
                     self.logger.debug(
                         f"Generated tests for path: {self.api_processor.get_api_verb_path(verb)} - {self.api_processor.get_api_verb_name(verb)}"
@@ -178,9 +177,8 @@ class FrameworkGenerator:
 
     def _is_response_file(self, file: Dict[str, Any]) -> bool:
         """Check if the file is a response interface"""
-        if "/responses" in file["path"]:
-            return True
-        return False
+
+        return "/responses" in file["path"]
 
     def _generate_models(self, api_definition: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         """Process a path definition and generate models"""

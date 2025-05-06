@@ -16,7 +16,7 @@ from src.test_controller import TestController
 from src.utils.checkpoint import Checkpoint
 from src.utils.logger import Logger
 from src.processors.swagger.endpoint_lister import EndpointLister
-from src.configuration.data_sources import DataSource
+from src.configuration.data_sources import DataSource, get_processor_for_data_source
 from src.processors.api_processor import APIProcessor
 
 
@@ -63,7 +63,7 @@ def main(
                 "destination_folder": args.destination_folder or config.destination_folder,
                 "endpoints": args.endpoints,
                 "generate": GenerationOptions(args.generate),
-                "data_source": APIProcessor.set_data_source(args.api_definition, logger),
+                "data_source": data_source,
                 "use_existing_framework": args.use_existing_framework,
                 "list_endpoints": args.list_endpoints,
             }
@@ -71,14 +71,7 @@ def main(
 
         logger.info(f"\nAPI definition: {config.api_definition}")
 
-        processor = None
-        if data_source == DataSource.SWAGGER:
-            processor = container.swagger_processor()
-        elif data_source == DataSource.POSTMAN:
-            processor = container.postman_processor()
-        else:
-            raise ValueError(f"Unsupported data source: {data_source}")
-
+        processor = get_processor_for_data_source(data_source, container)
         container.api_processor.override(processor)
         framework_generator = container.framework_generator()
 

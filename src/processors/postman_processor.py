@@ -20,16 +20,12 @@ class PostmanProcessor(APIProcessor):
         self.file_service = file_service
         self.logger = Logger.get_logger(__name__)
 
-    def process_api_definition(
-        self, json_file_path: str
-    ) -> List[Dict[str, Union[str, Dict]]]:
+    def process_api_definition(self, json_file_path: str) -> List[Dict[str, Union[str, Dict]]]:
         with open(json_file_path, encoding="utf-8") as postman_json_export:
             data = json.load(postman_json_export)
             return self.extract_requests(data)
 
-    def extract_env_vars(
-        self, extracted_requests: List[Dict[str, Union[str, Dict]]]
-    ) -> List[str]:
+    def extract_env_vars(self, extracted_requests: List[Dict[str, Union[str, Dict]]]) -> List[str]:
         env_vars = set()
         for request in extracted_requests:
             path = request.get("path", "")
@@ -43,19 +39,10 @@ class PostmanProcessor(APIProcessor):
     def get_api_paths(
         self, api_definition: Dict[str, Union[str, Dict]], endpoints=Optional[List[str]]
     ) -> List[Tuple]:
-        all_paths_no_query_params = self.get_all_distinct_paths_no_query_params(
-            api_definition
-        )
-
+        all_paths_no_query_params = self.get_all_distinct_paths_no_query_params(api_definition)
         verb_path_pairs = self._extract_verb_path_info(api_definition)
-
-        paths_grouped_by_service = self._group_paths_by_service(
-            all_paths_no_query_params
-        )
-
-        self.service_dict = self.map_verb_path_pairs_to_services(
-            verb_path_pairs, paths_grouped_by_service
-        )
+        paths_grouped_by_service = self._group_paths_by_service(all_paths_no_query_params)
+        self.service_dict = self.map_verb_path_pairs_to_services(verb_path_pairs, paths_grouped_by_service)
 
         return copy.deepcopy(self.service_dict).items()
 
@@ -90,9 +77,7 @@ class PostmanProcessor(APIProcessor):
                     }
                 )
 
-    def _group_paths_by_service(
-        self, all_distinct_paths_no_query_params: List[str]
-    ) -> Dict[str, List[str]]:
+    def _group_paths_by_service(self, all_distinct_paths_no_query_params: List[str]) -> Dict[str, List[str]]:
         grouped_paths_dict = {}
         for path in all_distinct_paths_no_query_params:
             root_path = path.split("/")[1]
@@ -102,19 +87,13 @@ class PostmanProcessor(APIProcessor):
 
         return grouped_paths_dict
 
-    def get_api_verb_path(
-        self, api_verb_definition: Dict[str, Union[str, Dict]]
-    ) -> str:
+    def get_api_verb_path(self, api_verb_definition: Dict[str, Union[str, Dict]]) -> str:
         return api_verb_definition["path"]
 
-    def get_api_verb_name(
-        self, api_verb_definition: Dict[str, Union[str, Dict]]
-    ) -> str:
+    def get_api_verb_name(self, api_verb_definition: Dict[str, Union[str, Dict]]) -> str:
         return api_verb_definition["verb"]
 
-    def get_api_verb_rootpath(
-        self, api_verb_definition: Dict[str, Union[str, Dict]]
-    ) -> str:
+    def get_api_verb_rootpath(self, api_verb_definition: Dict[str, Union[str, Dict]]) -> str:
         return api_verb_definition["service"]
 
     def _contains_same_items(self, array1: List, array2: List) -> bool:
@@ -123,27 +102,19 @@ class PostmanProcessor(APIProcessor):
         """
         return sorted(array1) == sorted(array2)
 
-    def _get_all_paths_from_service_dict(
-        self, service_dict: Dict[str, List[str]]
-    ) -> List[str]:
+    def _get_all_paths_from_service_dict(self, service_dict: Dict[str, List[str]]) -> List[str]:
         all_paths = []
         for paths in service_dict.values():
             all_paths.extend(paths)
         return all_paths
 
-    def get_api_verbs(
-        self, api_definition: Dict[str, str]
-    ) -> List[Dict[str, Union[str, Dict]]]:
+    def get_api_verbs(self, api_definition: Dict[str, str]) -> List[Dict[str, Union[str, Dict]]]:
         return self._add_service_name_to_verb_chunks(api_definition, self.service_dict)
 
-    def get_api_verb_content(
-        self, api_verb: Dict[str, Union[str, Dict]]
-    ) -> Dict[str, Union[str, Dict]]:
+    def get_api_verb_content(self, api_verb: Dict[str, Union[str, Dict]]) -> Dict[str, Union[str, Dict]]:
         return api_verb
 
-    def get_api_path_content(
-        self, api_path: Dict[str, Union[str, Dict]]
-    ) -> Dict[str, Union[str, Dict]]:
+    def get_api_path_content(self, api_path: Dict[str, Union[str, Dict]]) -> Dict[str, Union[str, Dict]]:
         return api_path
 
     def extract_requests(self, data, path=""):
@@ -238,9 +209,7 @@ class PostmanProcessor(APIProcessor):
 
         result = []
 
-        distinct_paths_no_query_params = self.get_all_distinct_paths_no_query_params(
-            extracted_requests
-        )
+        distinct_paths_no_query_params = self.get_all_distinct_paths_no_query_params(extracted_requests)
 
         for path_no_query_params in distinct_paths_no_query_params:
 
@@ -274,14 +243,10 @@ class PostmanProcessor(APIProcessor):
 
                         if len(path_sliced_on_query_param_start) > 1:
 
-                            all_query_params = path_sliced_on_query_param_start[
-                                1
-                            ].split("&")
+                            all_query_params = path_sliced_on_query_param_start[1].split("&")
 
                             if len(all_query_params) > 0:
-                                self._accumulate_query_params(
-                                    all_query_params_on_verb_path, all_query_params
-                                )
+                                self._accumulate_query_params(all_query_params_on_verb_path, all_query_params)
 
                 result.append(
                     {
@@ -295,9 +260,7 @@ class PostmanProcessor(APIProcessor):
 
         return result
 
-    def _accumulate_query_params(
-        self, all_query_params: Dict, current_request_query_params: str
-    ):
+    def _accumulate_query_params(self, all_query_params: Dict, current_request_query_params: str):
         for param in current_request_query_params:
 
             param_array = param.split("=")
@@ -313,26 +276,18 @@ class PostmanProcessor(APIProcessor):
                 if not re.match(PostmanProcessor.numeric_only, param_array[1]):
                     all_query_params[param_name] = "string"
 
-    def _accumulate_request_body_attributes(
-        self, all_body_attributes: Dict, current_request_body: Dict
-    ):
+    def _accumulate_request_body_attributes(self, all_body_attributes: Dict, current_request_body: Dict):
         for key, value in current_request_body.items():
             if key not in all_body_attributes:
-                if isinstance(value, str) and re.match(
-                    PostmanProcessor.numeric_only, value
-                ):
+                if isinstance(value, str) and re.match(PostmanProcessor.numeric_only, value):
                     all_body_attributes[key] = "number"
                 elif isinstance(value, str):
                     all_body_attributes[key] = "string"
                 elif isinstance(value, dict):
-                    all_body_attributes[f"{key}Object"] = self._map_object_attributes(
-                        value
-                    )
+                    all_body_attributes[f"{key}Object"] = self._map_object_attributes(value)
                 elif isinstance(value, list):
                     all_body_attributes[f"{key}Object"] = "array"
-            elif isinstance(value, str) and not re.match(
-                PostmanProcessor.numeric_only, value
-            ):
+            elif isinstance(value, str) and not re.match(PostmanProcessor.numeric_only, value):
                 all_body_attributes[key] = "string"
 
     def _to_camel_case(self, s: str) -> str:
@@ -361,17 +316,13 @@ class PostmanProcessor(APIProcessor):
 
             if "url" in data["request"]:
                 url_value = data["request"].get("url", "")
-                raw_url_value = (
-                    url_value["raw"] if isinstance(url_value, dict) else url_value
-                )
+                raw_url_value = url_value["raw"] if isinstance(url_value, dict) else url_value
                 result["path"] = raw_url_value
 
             if "body" in data["request"]:
                 try:
                     raw_body = data["request"]["body"].get("raw", "")
-                    clean_json_body = json.loads(
-                        raw_body.replace("\r", "").replace("\n", "")
-                    )
+                    clean_json_body = json.loads(raw_body.replace("\r", "").replace("\n", ""))
                 except (KeyError, json.JSONDecodeError):
                     clean_json_body = None
                 result["body"] = clean_json_body
@@ -402,9 +353,7 @@ class PostmanProcessor(APIProcessor):
         mapped_attributes = {}
 
         for key, value in obj.items():
-            if isinstance(value, str) and re.match(
-                PostmanProcessor.numeric_only, value
-            ):
+            if isinstance(value, str) and re.match(PostmanProcessor.numeric_only, value):
                 mapped_attributes[key] = "number"
             elif isinstance(value, str):
                 mapped_attributes[key] = "string"
@@ -425,9 +374,7 @@ class PostmanProcessor(APIProcessor):
         try:
             with open(package_json_path, "r") as file:
                 package_json = json.load(file)
-                package_json["scripts"][
-                    "test"
-                ] = "mocha runTestsInOrder.js --timeout 10000"
+                package_json["scripts"]["test"] = "mocha runTestsInOrder.js --timeout 10000"
 
             with open(package_json_path, "w") as file:
                 json.dump(package_json, file, indent=2)
@@ -436,18 +383,14 @@ class PostmanProcessor(APIProcessor):
         except Exception as e:
             self.logger.error(f"Failed to update package.json: {e}")
 
-    def _create_run_order_file(
-        self, destination_folder: str, extracted_requests: List[str]
-    ):
+    def _create_run_order_file(self, destination_folder: str, extracted_requests: List[str]):
         file_content = ["// This file runs the tests in order"]
 
         for request in extracted_requests:
             filepath = f'./{request["file_path"]}.spec.ts'
             file_content.append(f'import "{filepath}";')
 
-        run_tests_file_spec = FileSpec(
-            path="runTestsInOrder.js", fileContent="\n".join(file_content)
-        )
+        run_tests_file_spec = FileSpec(path="runTestsInOrder.js", fileContent="\n".join(file_content))
 
         self.file_service.create_files(destination_folder, [run_tests_file_spec])
         self.logger.info(f"Created runTestsInOrder.js file at {destination_folder}")
