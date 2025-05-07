@@ -64,9 +64,7 @@ This project supports both Anthropic and OpenAI language models:
 
   - GPT-4o (gpt-4o)
   - GPT-4.1 (gpt-4.1)
-  - GPT-4.1 Mini (gpt-4.1-mini)
   - O3 (o3)
-  - O3 Mini (o3-mini)
   - O4 Mini (o4-mini)
 
 You can configure your preferred model in the `.env` file:
