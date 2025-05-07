@@ -74,7 +74,7 @@ You can configure your preferred model in the `.env` file:
 MODEL=o4-mini
 ```
 
-> **Important**: Before using any model, please check the current pricing and costs on the respective provider's website (Anthropic, OpenAI, or Google). Model costs can vary significantly and may impact your usage budget.
+> **Important**: Before using any model, please check the current pricing and costs on the respective provider's website (Anthropic or OpenAI). Model costs can vary significantly and may impact your usage budget.
 
 ## Usage
 
