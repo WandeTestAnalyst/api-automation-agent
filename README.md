@@ -59,6 +59,7 @@ This project supports Anthropic, OpenAI and Google language models.
 **Anthropic**
 
   - Claude 3.7 Sonnet (claude-3-7-sonnet-latest)
+  - Claude 3.5 Sonnet (claude-3-5-sonnet-latest)
 
 **OpenAI**
 
