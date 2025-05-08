@@ -223,7 +223,7 @@ export interface BookingModel {{
 ```tsx
 import {{ BookingService }} from "../../models/services/BookingService.js";
 import {{ BookingModel }} from "../../models/requests/BookingModel.js";
-import 'chai/register-should';
+import 'chai/register-should.js';
 
 describe("Add Booking", () => {{
   const bookingService = new BookingService();
@@ -290,7 +290,7 @@ describe("Add Booking", () => {{
 import {{ BookingModel }} from "../../models/requests/BookingModel.js";
 import {{ BookingResponse }} from "../../models/responses/BookingResponse.js";
 import {{ BookingService }} from "../../models/services/BookingService.js";
-import 'chai/register-should';
+import 'chai/register-should.js';
 
 describe("Get Booking", () => {{
   const bookingService = new BookingService();
