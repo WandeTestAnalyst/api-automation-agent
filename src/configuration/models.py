@@ -4,9 +4,7 @@ from enum import Enum
 class Model(Enum):
     GPT_4_O = "gpt-4o"
     GPT_4_1 = "gpt-4.1"
-    GPT_4_1_MINI = "gpt-4.1-mini"
     O3 = "o3"
-    O3_MINI = "o3-mini"
     O4_MINI = "o4-mini"
     CLAUDE_SONNET_3_5 = "claude-3-5-sonnet-latest"
     CLAUDE_SONNET_3_7 = "claude-3-7-sonnet-latest"
