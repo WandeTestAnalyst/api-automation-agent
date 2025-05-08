@@ -111,8 +111,8 @@ class FrameworkGenerator:
             self.logger.info("\nProcessing API definitions")
             all_generated_models = {"info": []}
 
-            api_paths = self.api_processor.get_api_paths(merged_api_definition_list)
-            api_verbs = self.api_processor.get_api_verbs(merged_api_definition_list)
+            api_paths = self.api_processor.get_api_paths(merged_api_definition_list, self.config.endpoints)
+            api_verbs = self.api_processor.get_api_verbs(merged_api_definition_list, self.config.endpoints)
 
             for path in self.checkpoint.checkpoint_iter(api_paths, "generate_paths", all_generated_models):
                 models = self._generate_models(path)
@@ -169,7 +169,7 @@ class FrameworkGenerator:
                     self.logger.warning("⚠️ No test files found! Skipping tests.")
                     return None
 
-            return test_files
+                return test_files
 
         except Exception as e:
             self._log_error("Error during final checks", e)
@@ -212,8 +212,8 @@ class FrameworkGenerator:
     ) -> Optional[List[Dict[str, Any]]]:
         """Generate tests for a specific verb (HTTP method) in the API definition"""
         try:
-            relevant_models = self.api_processor.get_relevant_models(api_verb, all_models)
-            other_models = self.api_processor.get_other_models(api_verb, all_models)
+            relevant_models = self.api_processor.get_relevant_models(all_models, api_verb)
+            other_models = self.api_processor.get_other_models(all_models, api_verb)
             self.logger.info(
                 f"\nGenerating first test for path: {self.api_processor.get_api_verb_path(api_verb)} and verb: {self.api_processor.get_api_verb_name(api_verb)}"
             )

@@ -51,8 +51,8 @@ class PostmanProcessor(APIProcessor):
 
     def get_relevant_models(
         self,
-        api_verb: Dict[str, Union[str, Dict]],
         all_models: List[Dict[str, Union[str, Dict]]],
+        api_verb: Dict[str, Union[str, Dict]],
     ) -> List[str]:
         result = []
 
@@ -63,9 +63,7 @@ class PostmanProcessor(APIProcessor):
         return result
 
     def get_other_models(
-        self,
-        api_verb: Dict[str, Union[str, Dict]],
-        all_models: List[Dict[str, Union[str, Dict]]],
+        self, all_models: List[Dict[str, Union[str, Dict]]], api_verb: Dict[str, Union[str, Dict]]
     ) -> List[Dict[str, List[str]]]:
         result = []
 

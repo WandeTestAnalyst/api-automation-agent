@@ -136,10 +136,14 @@ class SwaggerProcessor(APIProcessor):
     def get_api_path_name(self, api_path: Dict[str, Union[str, Dict]]) -> str:
         return api_path["path"]
 
-    def get_api_verbs(self, api_definition: Dict[str, str]) -> List[Dict[str, Union[str, Dict]]]:
+    def get_api_verbs(
+        self, api_definition: Dict[str, str], endpoints: Optional[List[str]] = None
+    ) -> List[Dict[str, Union[str, Dict]]]:
         result = []
 
         for definition in api_definition:
+            if not self._should_process_endpoint(definition["path"], endpoints):
+                continue
             if definition["type"] == "verb":
                 result.append(definition)
 

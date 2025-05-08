@@ -1,3 +1,6 @@
+import json
+
+
 class EndpointLister:
     """
     Utility class for listing API endpoints.
