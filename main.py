@@ -1,3 +1,4 @@
+from argparse import Namespace
 import logging
 import os
 import traceback
@@ -49,6 +50,19 @@ def main(
                     return user_input == "y"
 
         data_source = APIProcessor.set_data_source(args.api_definition, logger)
+
+        def handle_unsupported_cli_args(data_source: DataSource, args: Namespace):
+            if data_source == DataSource.POSTMAN and (
+                args.use_existing_framework
+                or args.list_endpoints
+                or args.endpoints
+                or (args.generate != GenerationOptions.MODELS_AND_TESTS.value)
+            ):
+                raise ValueError(
+                    "The specified CLI arguments are not supported for the current data source.🔍 Check the README.md document for more info."
+                )
+
+        handle_unsupported_cli_args(data_source, args)
 
         if last_namespace != "default" and prompt_user_resume_previous_run():
             checkpoint.restore_last_namespace()

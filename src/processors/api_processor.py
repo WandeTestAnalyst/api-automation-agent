@@ -39,16 +39,9 @@ class APIProcessor(ABC):
                     elif "openapi" in data or "swagger" in data:
                         return DataSource.SWAGGER
 
-                break
-
-            except UnicodeDecodeError:
-                if encoding == encodings[-1] and logger:
-                    logger.warning(f"Could not decode file with any of the attempted encodings: {encodings}")
-                continue
             except Exception as e:
                 if logger:
                     logger.error(f"Error reading file {api_file_path} with encoding {encoding}: {e}")
-                break
 
     @abstractmethod
     def process_api_definition(self, api_file_path):
