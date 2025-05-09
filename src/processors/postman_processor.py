@@ -106,7 +106,9 @@ class PostmanProcessor(APIProcessor):
             all_paths.extend(paths)
         return all_paths
 
-    def get_api_verbs(self, api_definition: Dict[str, str]) -> List[Dict[str, Union[str, Dict]]]:
+    def get_api_verbs(
+        self, api_definition: Dict[str, str], endpoints=None
+    ) -> List[Dict[str, Union[str, Dict]]]:
         return self._add_service_name_to_verb_chunks(api_definition, self.service_dict)
 
     def get_api_verb_content(self, api_verb: Dict[str, Union[str, Dict]]) -> Dict[str, Union[str, Dict]]:

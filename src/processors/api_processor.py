@@ -23,29 +23,39 @@ class APIProcessor(ABC):
         if api_file_path.endswith((".yml", ".yaml")):
             return DataSource.SWAGGER
 
-        try:
-            with open(api_file_path, "r") as f:
-                if api_file_path.endswith(".json"):
-                    data = json.load(f)
-                else:
-                    data = yaml.safe_load(f)
+        encodings = ["utf-8", "utf-8-sig", "latin-1", "cp1252"]
 
-            if isinstance(data, dict):
-                if "info" in data and "_postman_id" in data["info"]:
-                    return DataSource.POSTMAN
-                elif "openapi" in data or "swagger" in data:
-                    return DataSource.SWAGGER
+        for encoding in encodings:
+            try:
+                with open(api_file_path, "r", encoding=encoding) as f:
+                    if api_file_path.endswith(".json"):
+                        data = json.load(f)
+                    else:
+                        data = yaml.safe_load(f)
 
-        except Exception as e:
-            if logger:
-                logger.error(f"Error reading file {api_file_path}: {e}")
+                if isinstance(data, dict):
+                    if "info" in data and "_postman_id" in data["info"]:
+                        return DataSource.POSTMAN
+                    elif "openapi" in data or "swagger" in data:
+                        return DataSource.SWAGGER
+
+                break
+
+            except UnicodeDecodeError:
+                if encoding == encodings[-1] and logger:
+                    logger.warning(f"Could not decode file with any of the attempted encodings: {encodings}")
+                continue
+            except Exception as e:
+                if logger:
+                    logger.error(f"Error reading file {api_file_path} with encoding {encoding}: {e}")
+                break
 
     @abstractmethod
     def process_api_definition(self, api_file_path):
         pass
 
     @abstractmethod
-    def get_api_verbs(self, api_definition):
+    def get_api_verbs(self, api_definition, endpoints=None):
         pass
 
     @abstractmethod
