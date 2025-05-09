@@ -8,6 +8,7 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import BaseTool
 from src.configuration.models import Model
+from src.configuration.data_sources import DataSource
 
 from .file_service import FileService
 from ..configuration.config import Config
@@ -23,6 +24,7 @@ class PromptConfig:
     DOT_ENV = "./prompts/create-dot-env.txt"
     MODELS = "./prompts/create-models.txt"
     FIRST_TEST = "./prompts/create-first-test.txt"
+    FIRST_TEST_POSTMAN = "./prompts/create-first-test-postman.txt"
     TESTS = "./prompts/create-tests.txt"
     FIX_TYPESCRIPT = "./prompts/fix-typescript.txt"
     SUMMARY = "./prompts/generate-model-summary.txt"
@@ -63,7 +65,6 @@ class LLMService:
         try:
             if language_model and override:
                 self.config.model = language_model
-
             if self.config.model.is_anthropic():
                 return ChatAnthropic(
                     model_name=self.config.model.value,
@@ -105,7 +106,7 @@ class LLMService:
         self,
         prompt_path: str,
         tools: Optional[List[BaseTool]] = None,
-        tool_to_use: Optional[str] = None,
+        must_use_tool: Optional[bool] = False,
         language_model: Optional[Model] = None,
     ) -> Any:
         """
@@ -126,12 +127,18 @@ class LLMService:
             llm = self._select_language_model(language_model)
             prompt_template = ChatPromptTemplate.from_template(self._load_prompt(prompt_path))
 
-            converted_tools = [convert_tool_for_model(tool, llm) for tool in all_tools]
-
-            if tool_to_use:
-                llm_with_tools = llm.bind_tools(converted_tools, tool_choice=tool_to_use)
+            if tools:
+                converted_tools = [convert_tool_for_model(tool, llm) for tool in all_tools]
+                tool_choice = "auto"
+                if self.config.model.is_anthropic():
+                    if must_use_tool:
+                        tool_choice = "any"
+                else:
+                    if must_use_tool:
+                        tool_choice = "required"
+                llm_with_tools = llm.bind_tools(converted_tools, tool_choice=tool_choice)
             else:
-                llm_with_tools = llm.bind_tools(converted_tools)
+                llm_with_tools = llm
 
             def process_response(response):
                 tool_map = {tool.name.lower(): tool for tool in all_tools}
@@ -157,6 +164,7 @@ class LLMService:
             self.create_ai_chain(
                 PromptConfig.DOT_ENV,
                 tools=[FileCreationTool(self.config, self.file_service)],
+                must_use_tool=True,
             ).invoke({"api_definition": api_definition})
         )
 
@@ -166,6 +174,7 @@ class LLMService:
             self.create_ai_chain(
                 PromptConfig.MODELS,
                 tools=[FileCreationTool(self.config, self.file_service, are_models=True)],
+                must_use_tool=True,
             ).invoke({"api_definition": api_definition})
         )
 
@@ -173,10 +182,17 @@ class LLMService:
         self, api_definition: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Generate first test from API definition and models."""
+        prompt = None
+        if self.config.data_source == DataSource.POSTMAN:
+            prompt = PromptConfig.FIRST_TEST_POSTMAN
+        else:
+            prompt = PromptConfig.FIRST_TEST
+
         return json.loads(
             self.create_ai_chain(
-                PromptConfig.FIRST_TEST,
+                prompt,
                 tools=[FileCreationTool(self.config, self.file_service)],
+                must_use_tool=True,
             ).invoke({"api_definition": api_definition, "models": models})
         )
 
@@ -190,6 +206,7 @@ class LLMService:
         return self.create_ai_chain(
             PromptConfig.ADD_INFO,
             tools=[FileReadingTool(self.config, self.file_service)],
+            must_use_tool=True,
         ).invoke(
             {
                 "relevant_models": relevant_models,
@@ -208,6 +225,7 @@ class LLMService:
             self.create_ai_chain(
                 PromptConfig.ADDITIONAL_TESTS,
                 tools=[FileCreationTool(self.config, self.file_service)],
+                must_use_tool=True,
             ).invoke(
                 {
                     "tests": tests,
@@ -234,4 +252,5 @@ class LLMService:
         self.create_ai_chain(
             PromptConfig.FIX_TYPESCRIPT,
             tools=[FileCreationTool(self.config, self.file_service, are_models=are_models)],
+            must_use_tool=True,
         ).invoke({"files": files, "messages": messages})

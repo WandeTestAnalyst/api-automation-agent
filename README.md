@@ -1,6 +1,6 @@
 # API Automation Agent
 
-An open-source AI Agent that automatically generates an automation framework from your OpenAPI/Swagger specification, based on the api-framework-ts-mocha template (https://github.com/damianpereira86/api-framework-ts-mocha).
+An open-source AI Agent that automatically generates an automation framework from your OpenAPI/Swagger specification or Postman collection, based on the api-framework-ts-mocha template (https://github.com/damianpereira86/api-framework-ts-mocha).
 
 ## Features
 
@@ -9,6 +9,7 @@ An open-source AI Agent that automatically generates an automation framework fro
 - Reviewes and fixes code issues and ensures code quality and best practices
 - Includes code formatting and linting
 - Runs tests with detailed reporting and assertions
+- Migrates Postman collections to an open source automation framework, mantaining test structure and run order.
 
 ## Prerequisites
 
@@ -49,7 +50,8 @@ This project supports both Anthropic and OpenAI language models:
 
 ### Default Model
 
-**Claude 3.7 Sonnet** (claude-3-7-sonnet-latest) is the default and recommended model for this agentic workflow.
+**Claude 3.7 Sonnet** (claude-3-7-sonnet-latest) is the default and recommended model
+
 - Provides superior code generation and understanding
 - Offers the best balance of performance and cost
 - **Strongly recommended**: Other models may not provide satisfactory results for this specific use case
@@ -58,15 +60,15 @@ This project supports both Anthropic and OpenAI language models:
 
 **Anthropic**
 
-  - Claude 3.7 Sonnet (claude-3-7-sonnet-latest)
-  - Claude 3.5 Sonnet (claude-3-5-sonnet-latest)
+- Claude 3.7 Sonnet (claude-3-7-sonnet-latest)
+- Claude 3.5 Sonnet (claude-3-5-sonnet-latest)
 
 **OpenAI**
 
-  - GPT-4o (gpt-4o)
-  - GPT-4.1 (gpt-4.1)
-  - O3 (o3)
-  - O4 Mini (o4-mini)
+- GPT-4o (gpt-4o)
+- GPT-4.1 (gpt-4.1)
+- O3 (o3)
+- O4 Mini (o4-mini)
 
 You can configure your preferred model in the `.env` file:
 
@@ -85,8 +87,9 @@ python ./main.py <path_or_url_to_openapi_definition>
 ```
 
 The agent accepts either:
-- A local file path to your OpenAPI/Swagger specification
-- A URL to a JSON or YAML OpenAPI/Swagger specification
+
+- A local file path to your OpenAPI/Swagger specification or Postman collection
+- A URL to a JSON or YAML OpenAPI/Swagger specification (URL not supported for Postman collections)
 
 ### Options
 
@@ -97,7 +100,9 @@ The agent accepts either:
   - `models`: Generate only the data models
   - `models_and_first_test`: Generate data models and the first test for each endpoint
   - `models_and_tests`: Generate data models and complete test suites
-- `--list-endpoints`: List the endpoints that can be used with the --endpoints flag.
+- `--list-endpoints`: List the endpoints that can be used with the --endpoints flag
+
+> **Note**: The `--endpoints`, `--generate`, `--list-endpoints`, and `--use-existing-framework` options are only available when using Swagger/OpenAPI specifications. When using Postman collections, only the `--destination-folder` parameter is fully supported.
 
 ### Examples
 
@@ -154,22 +159,57 @@ generated-framework_[timestamp]/    # Or the Destination Folder selected
 └── tsconfig.json
 ```
 
+## Postman Collection Migration
+
+The API Automation Agent can now convert your Postman collections into TypeScript automated test frameworks, preserving the structure and test logic of your collections.
+
+### Supported Features
+
+- Converts Postman Collection v2.0 format JSON files into a TypeScript test framework
+- Maintains the original folder structure of your Postman collection
+- Preserves test run order for consistent test execution
+- Creates service files by grouping API routes by path
+- Migrates test scripts and assertions
+
+### Limitations
+
+- Only supports local Postman collection files (no HTTP download support yet)
+- Currently only supports Postman Collection v2.0 format
+- Scripts contained in folders (rather than requests) are not processed
+- Limited CLI support - only the `--destination-folder` parameter is fully supported with Postman collections
+
+### Best Practices
+
+The migration works best with well-structured APIs where:
+
+- Endpoints are organized logically by resource
+- Similar endpoints (e.g., /users, /users/{id}) are grouped together
+- HTTP methods follow REST conventions
+
+### Usage
+
+```bash
+# Migrate a Postman collection to TypeScript test framework
+python ./main.py path/to/postman_collection.json --destination-folder ./my-api-tests
+```
+
 ## Testing the Agent
 
-To try out the agent without using your own API specification, you can use one of the following test APIs: 
+To try out the agent without using your own API specification, you can use one of the following test APIs:
+
 - [CatCafe API](https://github.com/CodingRainbowCat/CatCafeProject): Test API created by [@CodingRainbowCat](https://github.com/CodingRainbowCat) epecifically for testing the agent. You can check the repo to run it locally. It's very useful since it can be easily modified to test different scenarios.
 - [Pet Store API](https://petstore.swagger.io/#/): Public test API
 
 ### Examples
 
-**Cat Cafe**  
+**Cat Cafe**
 
 ```bash
-# /adopters endpoints 
+# /adopters endpoints
 python ./main.py http://localhost:3000/swagger.json --endpoints /adopters
 ```
 
-**Pet Store**  
+**Pet Store**
 
 ```bash
 # /store endpoints
@@ -177,7 +217,7 @@ python ./main.py https://petstore.swagger.io/v2/swagger.json --endpoints /store
 ```
 
 These are simple and small examples that includes basic CRUD operations and are ideal for testing the agent's capabilities.
-Estimated cost (with claude-3-7-sonnet-latest) to run each example above: US$ ~0.1  
+Estimated cost (with claude-3-7-sonnet-latest) to run each example above: US$ ~0.1
 
 You can combine endpoints to test larger scenarios.:
 
@@ -343,4 +383,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - OpenAI and Anthropic for their AI models
 - All contributors who have helped build and improve this project
-

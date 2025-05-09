@@ -1,5 +1,11 @@
-from typing import Dict, List, Union
+import json
+import yaml
+from typing import Dict, List, Optional, Union
 
+from src.ai_tools.models.file_spec import FileSpec
+from src.processors.api_processor import APIProcessor
+from src.services.file_service import FileService
+from src.configuration.config import Config
 from .swagger import (
     APIDefinitionMerger,
     APIDefinitionSplitter,
@@ -7,16 +13,19 @@ from .swagger import (
     APIDefinitionLoader,
 )
 from ..utils.logger import Logger
+import re
 
 
-class SwaggerProcessor:
+class SwaggerProcessor(APIProcessor):
     """Processes API definitions by orchestrating file loading, splitting, and merging."""
 
     def __init__(
         self,
-        file_loader: FileLoader,
+        file_loader: FileService,
         splitter: APIDefinitionSplitter,
         merger: APIDefinitionMerger,
+        file_service: FileService,
+        config: Config,
         apiDefinitionLoader: APIDefinitionLoader = None,
     ):
         """
@@ -28,6 +37,8 @@ class SwaggerProcessor:
             merger (APIDefinitionMerger): Service to merge API definitions.
             apiDefinitionLoader (APIDefinitionLoader): Service to load API definition from URL or file.
         """
+        self.config = config
+        self.file_service = file_service
         self.file_loader = file_loader
         self.splitter = splitter
         self.merger = merger
@@ -61,3 +72,131 @@ class SwaggerProcessor:
         except Exception as e:
             self.logger.error(f"Error processing API definition: {e}")
             raise
+
+    def extract_env_vars(self, api_definitions: List[Dict[str, Union[str, Dict]]]) -> None:
+        self.logger.info("\nGenerating .env file...")
+
+        api_definition_str = api_definitions[0]["yaml"]
+        try:
+            api_spec = json.loads(api_definition_str)
+        except json.JSONDecodeError:
+            api_spec = yaml.safe_load(api_definition_str)
+
+        base_url = self._extract_base_url(api_spec)
+
+        if not base_url:
+            self.logger.warning("⚠️ Could not extract base URL from API definition")
+            base_url = input("Please enter the base URL for the API: ")
+
+        env_file_path = ".env"
+        env_content = f"BASEURL={base_url}\n"
+
+        file_spec = FileSpec(path=env_file_path, fileContent=env_content)
+        self.file_service.create_files(self.config.destination_folder, [file_spec])
+
+        self.logger.info(f"Generated .env file with BASEURL={base_url}")
+
+    def _extract_base_url(self, api_spec):
+        """Extract base URL from OpenAPI specification"""
+        if "openapi" in api_spec and api_spec["openapi"].startswith("3."):
+            if "servers" in api_spec and api_spec["servers"] and "url" in api_spec["servers"][0]:
+                return api_spec["servers"][0]["url"]
+        elif "swagger" in api_spec and api_spec["swagger"].startswith("2."):
+            host = api_spec.get("host")
+            if host:
+                scheme = "https"
+                if "schemes" in api_spec and api_spec["schemes"]:
+                    scheme = api_spec["schemes"][0]
+
+                base_path = api_spec.get("basePath", "")
+                return f"{scheme}://{host}{base_path}"
+
+        return None
+
+    def get_api_paths(
+        self, api_definition: Union[str, Dict], endpoints: Optional[List[str]] = None
+    ) -> List[Dict[str, Union[str, Dict]]]:
+        result = []
+
+        for definition in api_definition:
+            if not self._should_process_endpoint(definition["path"], endpoints):
+                continue
+            if definition["type"] == "path":
+                result.append(definition)
+
+        return result
+
+    def _should_process_endpoint(self, path: str, endpoints: List[str]) -> bool:
+        """Check if an endpoint should be processed based on configuration"""
+        if endpoints is None:
+            return True
+
+        return any(path.startswith(endpoint) for endpoint in endpoints)
+
+    def get_api_path_name(self, api_path: Dict[str, Union[str, Dict]]) -> str:
+        return api_path["path"]
+
+    def get_api_verbs(
+        self, api_definition: Dict[str, str], endpoints: Optional[List[str]] = None
+    ) -> List[Dict[str, Union[str, Dict]]]:
+        result = []
+
+        for definition in api_definition:
+            if not self._should_process_endpoint(definition["path"], endpoints):
+                continue
+            if definition["type"] == "verb":
+                result.append(definition)
+
+        return result
+
+    def get_api_verb_path(self, api_verb_definition: Dict[str, Union[str, Dict]]) -> str:
+        return api_verb_definition["path"]
+
+    def get_api_verb_rootpath(self, api_verb_definition: Dict[str, Union[str, Dict]]) -> str:
+        return self._get_root_path(api_verb_definition["path"])
+
+    def get_api_verb_name(self, api_verb: Dict[str, Union[str, Dict]]) -> str:
+        return api_verb["verb"]
+
+    def _get_root_path(self, path: str) -> str:
+        match = re.match(r"(/[^/?]+)", path)
+        if match:
+            return match.group(1)
+        return path
+
+    def get_relevant_models(
+        self, all_models: List[Dict[str, Union[str, Dict]]], api_verb: Union[str, Dict]
+    ) -> List[Dict[str, Union[str, Dict]]]:
+        result = []
+
+        for model in all_models:
+            if api_verb["path"] == model["path"] or str(api_verb["path"]).startswith(model["path"] + "/"):
+                result.append(model["models"])
+
+        return result
+
+    def get_other_models(
+        self,
+        all_models: List[Dict[str, Union[str, Dict]]],
+        api_verb: Dict[str, Union[str, Dict]],
+    ) -> List[Dict[str, str]]:
+        result = []
+
+        for model in all_models:
+            if not (
+                api_verb["path"] == model["path"] or str(api_verb["path"]).startswith(model["path"] + "/")
+            ):
+                result.append(
+                    {
+                        "path": model["path"],
+                        "files": model["files"],
+                    }
+                )
+
+        return result
+
+    def get_api_verb_content(self, api_verb: Dict[str, Union[str, Dict]]) -> str:
+        return api_verb["yaml"]
+
+    def get_api_path_content(self, api_path: Dict[str, Union[str, Dict]]) -> str:
+        return api_path["yaml"]
