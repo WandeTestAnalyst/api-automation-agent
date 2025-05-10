@@ -1,7 +1,5 @@
-import json
 import signal
 import sys
-import json
 from typing import List, Dict, Any, Optional
 
 from src.processors.api_processor import APIProcessor
@@ -94,8 +92,8 @@ class FrameworkGenerator:
         """Generate the .env file from the provided API definition"""
         try:
             self.logger.info("\nGenerating .env file")
-            env_vars_data = self.api_processor.extract_env_vars(api_definitions)
-            self.llm_service.generate_dot_env(env_vars_data)
+            self.api_processor.extract_env_vars(api_definitions)
+            # self.llm_service.generate_dot_env(env_vars_data)
         except Exception as e:
             self._log_error("Error creating .env file", e)
             raise

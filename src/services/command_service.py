@@ -1,12 +1,7 @@
-from collections import defaultdict
-import json
 import os
-import re
 import subprocess
 import logging
-import sys
 from typing import List, Dict, Tuple, Optional, Callable
-from src.visuals.loading_animator import LoadingDotsAnimator
 
 from ..configuration.config import Config
 
@@ -94,7 +89,21 @@ class CommandService:
             self._log_message(f"Unexpected error: {e}", is_error=True)
             return False, str(e)
 
-    def run_command_silently(self, command: str, cwd: str) -> str:
+    def run_command_silently(self, command: str, cwd: str, env_vars: Optional[Dict[str, str]] = None) -> str:
+        """Run a command silently, capturing stdout and stderr.
+
+        Args:
+            command (str): The command to run.
+            cwd (str): The working directory.
+            env_vars (Optional[Dict[str, str]]): Additional environment variables to set/override.
+
+        Returns:
+            str: The stdout of the command, or empty string if none.
+        """
+        process_env = os.environ.copy()
+        if env_vars:
+            process_env.update(env_vars)
+
         result = subprocess.run(
             command,
             shell=True,
@@ -103,7 +112,14 @@ class CommandService:
             stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
+            env=process_env,  # Pass the combined environment
         )
+        # Log stderr if there was an error or if it contains anything interesting
+        if result.returncode != 0 and result.stderr:
+            self.logger.error(f"Command '{command}' failed with stderr:\n{result.stderr}")
+        elif result.stderr:  # Log stderr even on success if it's not empty, as it might contain warnings
+            self.logger.debug(f"Command '{command}' produced stderr (even if successful):\n{result.stderr}")
+
         return result.stdout or ""
 
     def run_command_with_fix(

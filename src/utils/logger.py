@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from typing import Optional, List
+from typing import List
 
 from src.configuration.config import Config
 
@@ -20,17 +20,22 @@ class Logger:
         stdout_handler.setLevel(logging.DEBUG if config.debug else logging.INFO)
         stdout_handler.setFormatter(logging.Formatter(stdout_format))
 
-        log_folder = "logs/"
-        os.makedirs(os.path.dirname(log_folder), exist_ok=True)
-        file_handler = MultilineFileHandler(
-            log_folder + config.destination_folder.split("/")[-1] + ".log"
-        )
-        file_handler.setLevel(logging.DEBUG)
+        base_log_folder = "logs"
+        # Use only the last part of the destination_folder for the log file name
+        # e.g., if destination_folder is "out/run1", log file is "logs/run1.log"
+        log_file_name = config.destination_folder.replace("\\", "/").split("/")[-1] + ".log"
+        full_log_path = os.path.join(base_log_folder, log_file_name)
+
+        # Ensure the directory for the log file exists
+        os.makedirs(os.path.dirname(full_log_path), exist_ok=True)
+
+        file_handler = MultilineFileHandler(full_log_path)
+        file_handler.setLevel(logging.DEBUG)  # Log everything to file by default
         file_handler.setFormatter(logging.Formatter(file_format))
 
         logging.basicConfig(
-            format="%(message)s",
-            level=logging.DEBUG,
+            format="%(message)s",  # This format is for basicConfig, handlers have their own
+            level=log_level,  # Root logger level
             handlers=[stdout_handler, file_handler],
         )
         logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -49,9 +54,7 @@ class MultilineFileHandler(logging.FileHandler):
             if not isinstance(record.msg, str):
                 record.msg = str(record.msg)
 
-            messages: List[str] = [
-                message for message in record.msg.split("\n") if message.strip()
-            ]
+            messages: List[str] = [message for message in record.msg.split("\n") if message.strip()]
 
             if not messages:
                 return

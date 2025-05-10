@@ -1,6 +1,7 @@
 import os
 import shutil
-import json
+
+# import json # Removed unused import
 from typing import List, Optional
 
 from src.ai_tools.models.file_spec import FileSpec
@@ -18,9 +19,7 @@ class FileService:
         """
         self.logger = Logger.get_logger(__name__)
 
-    def copy_framework_template(
-        self, destination_folder: str, api_definition=None
-    ) -> Optional[str]:
+    def copy_framework_template(self, destination_folder: str, api_definition=None) -> Optional[str]:
         """
         Copy the API framework template to a new folder.
 
@@ -33,7 +32,9 @@ class FileService:
         src_folder = "./api-framework-template"
         self.logger.info("Generating new framework...")
         try:
-            shutil.copytree(src_folder, destination_folder)
+            # For dirs_exist_ok=True, dst must be a directory.
+            # The benchmark runner ensures destination_folder is an existing, empty dir.
+            shutil.copytree(src_folder, destination_folder, dirs_exist_ok=True)
             self.logger.info("Framework template generated successfully.")
             return destination_folder
         except Exception as e:
