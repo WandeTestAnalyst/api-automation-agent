@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from tabulate import tabulate
+import time
 
 # Add project root to Python path to allow importing project modules
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -64,6 +65,7 @@ def _run_benchmark_for_llm(
     llm_model_enum: Model, args: argparse.Namespace, benchmark_logger: logging.Logger
 ) -> Dict[str, Any]:
     """Runs the benchmark for a single LLM model."""
+    start_time = time.monotonic()
     llm_model_name = llm_model_enum.name
     llm_model_value = llm_model_enum.value
 
@@ -75,6 +77,7 @@ def _run_benchmark_for_llm(
         "status": "PENDING",
         "error_message": None,
         "metrics": None,
+        "duration_seconds": None,
     }
 
     try:
@@ -162,8 +165,28 @@ def _run_benchmark_for_llm(
         benchmark_logger.error(f"Error during benchmark for LLM {llm_model_name}: {e}", exc_info=True)
         current_llm_result_data["status"] = "FAILED"
         current_llm_result_data["error_message"] = str(e)
+    finally:
+        end_time = time.monotonic()
+        duration = end_time - start_time
+        current_llm_result_data["duration_seconds"] = round(duration, 2)
 
     return current_llm_result_data
+
+
+def _format_duration_for_display(duration_seconds: Optional[float]) -> str:
+    """Formats duration in seconds to a human-readable string 'Xh Ym Zs', 'Ym Zs' or 'Ys'."""
+    if isinstance(duration_seconds, (int, float)):
+        hours = int(duration_seconds // 3600)
+        remaining_seconds = duration_seconds % 3600
+        minutes = int(remaining_seconds // 60)
+        seconds = int(remaining_seconds % 60)
+
+        if hours > 0:
+            return f"{hours}h {minutes}m {seconds}s"
+        elif minutes > 0:
+            return f"{minutes}m {seconds}s"
+        return f"{seconds}s"
+    return "N/A"
 
 
 def _generate_reports(
@@ -191,10 +214,14 @@ def _generate_reports(
         "Tests Run",
         "Passed",
         "Review",
+        "Duration",
     ]
     table_data = []
     for result in benchmark_results:
         metrics = result.get("metrics")
+        duration_seconds = result.get("duration_seconds")
+        formatted_duration = _format_duration_for_display(duration_seconds)
+
         row = [
             result.get("llm_model_name", "N/A"),
         ]
@@ -207,16 +234,16 @@ def _generate_reports(
                     metrics.get("total_tests_executed", "N/A"),
                     metrics.get("passed_tests", "N/A"),
                     metrics.get("review_tests", "N/A"),
+                    formatted_duration,
                 ]
             )
         else:
             row.extend(["N/A"] * 6)
+            row.append(formatted_duration)
 
         table_data.append(row)
 
     if table_data:
-        # Using "grid" format for clear separation of cells.
-        # Other options include "pipe", "simple", "rst", etc.
         table_string = tabulate(table_data, headers=headers, tablefmt="grid")
         for line in table_string.splitlines():
             print(line)
