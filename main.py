@@ -113,7 +113,7 @@ def main(
                 framework_generator.setup_framework(api_definitions)
                 framework_generator.create_env_file(api_definitions)
 
-            # framework_generator.generate(api_definitions, config.generate)
+            framework_generator.generate(api_definitions, config.generate)
             test_files = framework_generator.run_final_checks(config.generate)
 
             logger.info("\n✅ Framework generation completed successfully!")
