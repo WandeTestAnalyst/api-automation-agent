@@ -66,15 +66,14 @@ class TestController:
 
             if runnable_files:
                 self.logger.info("✅ Test files ready to run:")
-                for i, path in enumerate(runnable_files):
+                for path in runnable_files:
                     self.logger.info(f"  - {path}")
 
             return TestFileSet(runnable=runnable_files, skipped=[])
 
         temp_tsconfig_path = self._generate_temp_tsconfig(all_error_files)
 
-        pass_count = 1
-        while pass_count < 5:
+        for pass_count in range(1, 5):
 
             try:
                 new_output = self.command_service.run_command_silently(
@@ -93,20 +92,19 @@ class TestController:
                     all_error_files.add(err)
                     newly_discovered.append(err)
 
-            if newly_discovered:
-                with open(temp_tsconfig_path, "r", encoding="utf-8") as f:
-                    temp_config = json.load(f)
-
-                for err in newly_discovered:
-                    rel_path = os.path.normpath(err).replace("\\", "/")
-                    if rel_path not in temp_config["exclude"]:
-                        temp_config["exclude"].append(rel_path)
-
-                with open(temp_tsconfig_path, "w", encoding="utf-8") as f:
-                    json.dump(temp_config, f, indent=2)
-
             if not newly_discovered:
                 break
+
+            with open(temp_tsconfig_path, "r", encoding="utf-8") as f:
+                temp_config = json.load(f)
+
+            for err in newly_discovered:
+                rel_path = os.path.normpath(err).replace("\\", "/")
+                if rel_path not in temp_config["exclude"]:
+                    temp_config["exclude"].append(rel_path)
+
+            with open(temp_tsconfig_path, "w", encoding="utf-8") as f:
+                json.dump(temp_config, f, indent=2)
 
             pass_count += 1
 
