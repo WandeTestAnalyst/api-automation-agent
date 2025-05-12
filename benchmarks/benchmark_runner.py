@@ -242,7 +242,7 @@ def _generate_reports(
         table_data.append(row)
 
     if table_data:
-        table_string = tabulate(table_data, headers=headers, tablefmt="grid")
+        table_string = tabulate(table_data, headers=headers, tablefmt="github")
         for line in table_string.splitlines():
             print(line)
 
