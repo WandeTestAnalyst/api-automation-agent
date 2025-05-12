@@ -4,16 +4,16 @@ import sys
 import json
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from tabulate import tabulate
 import time
+from pydantic import BaseModel, Field
 
 # Add project root to Python path to allow importing project modules
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 from dotenv import load_dotenv  # noqa: E402
-
 from src.configuration.models import Model  # noqa: E402
 from src.utils.logger import Logger as SrcLogger  # noqa: E402
 from src.configuration.config import Config, GenerationOptions  # noqa: E402
@@ -24,6 +24,28 @@ from src.configuration.data_sources import get_processor_for_data_source  # noqa
 from src.processors.api_processor import APIProcessor  # noqa: E402
 from src.framework_generator import FrameworkGenerator  # noqa: E402
 from src.test_controller import TestController, TestRunMetrics  # noqa: E402
+from src.models.usage_data import AggregatedUsageMetadata  # noqa: E402
+
+
+class BenchmarkTestMetrics(BaseModel):
+    generated_test_files_count: int = 0
+    skipped_compilation_files_count: int = 0
+    runnable_test_files_count: int = 0
+    total_tests_executed: int = 0
+    passed_tests: int = 0
+    review_tests: int = 0
+
+
+class BenchmarkResult(BaseModel):
+    llm_model_value: str
+    api_definition: str
+    endpoints: List[str] = Field(default_factory=list)
+    status: str = "PENDING"
+    error_message: Optional[str] = None
+    metrics: Optional[BenchmarkTestMetrics] = None
+    duration_seconds: Optional[float] = None
+    llm_usage_metadata: Optional[AggregatedUsageMetadata] = None
+    generated_framework_path: Optional[str] = None
 
 
 def _setup_benchmark_logger(level=logging.INFO):
@@ -62,21 +84,18 @@ def parse_llms(llm_string: str) -> List[Model]:
 
 
 def _run_benchmark_for_llm(
-    llm_model_enum: Model, args: argparse.Namespace, benchmark_logger: logging.Logger
-) -> Dict[str, Any]:
+    llm_model_enum: Model, openapi_spec: str, endpoints: Optional[List[str]], benchmark_logger: logging.Logger
+) -> BenchmarkResult:
     """Runs the benchmark for a single LLM model."""
     start_time = time.monotonic()
     llm_model_value = llm_model_enum.value
 
-    current_llm_result_data = {
-        "llm_model_value": llm_model_value,
-        "api_definition": args.openapi_spec,
-        "endpoints": args.endpoints if args.endpoints else [],
-        "status": "PENDING",
-        "error_message": None,
-        "metrics": None,
-        "duration_seconds": None,
-    }
+    # Initialize parts of the result model first
+    result = BenchmarkResult(
+        llm_model_value=llm_model_value,
+        api_definition=openapi_spec,
+        endpoints=endpoints if endpoints else [],
+    )
 
     try:
         # Initialize DI Container and Config
@@ -87,11 +106,13 @@ def _run_benchmark_for_llm(
 
         config: Config = container.config()
 
+        # Prepare destination folder name early
+        dest_folder = f"{config.destination_folder}_benchmark_{llm_model_value}"
         config.update(
             {
-                "api_definition": args.openapi_spec,
-                "destination_folder": f"{config.destination_folder}_benchmark_{llm_model_value}",
-                "endpoints": args.endpoints if args.endpoints else [],
+                "api_definition": openapi_spec,
+                "destination_folder": dest_folder,
+                "endpoints": endpoints if endpoints else [],
                 "generate": GenerationOptions.MODELS_AND_TESTS,
                 "model": llm_model_enum,
                 "use_existing_framework": False,
@@ -103,7 +124,7 @@ def _run_benchmark_for_llm(
         SrcLogger.configure_logger(config)
 
         agent_setup_logger = SrcLogger.get_logger(__name__ + ".agent_setup")
-        data_source = APIProcessor.set_data_source(args.openapi_spec, agent_setup_logger)
+        data_source = APIProcessor.set_data_source(openapi_spec, agent_setup_logger)
         config.update({"data_source": data_source})
 
         benchmark_logger.info(
@@ -123,52 +144,67 @@ def _run_benchmark_for_llm(
         framework_generator.generate(api_definitions, config.generate)
         test_files_details = framework_generator.run_final_checks(config.generate)
 
-        metrics_data: TestRunMetrics
+        # Get AggregatedUsageMetadata object
+        result.llm_usage_metadata = framework_generator.get_aggregated_usage_metadata()
+
+        generated_files_count = len(test_files_details) if test_files_details else 0
+
         if not test_files_details:
             benchmark_logger.warning(
                 "No test files were generated or passed final checks. Skipping test run."
             )
-            metrics_data = TestRunMetrics(total_tests=0, passed_tests=0, review_tests=0, skipped_files=0)
-        else:
-            benchmark_logger.info(
-                f"Proceeding to run tests for {len(test_files_details)} generated file(s)..."
+            # Create metrics with 0s, but reflect skipped files
+            result.metrics = BenchmarkTestMetrics(
+                generated_test_files_count=generated_files_count,
+                skipped_compilation_files_count=generated_files_count,  # All generated files were skipped
+                runnable_test_files_count=0,
+                total_tests_executed=0,
+                passed_tests=0,
+                review_tests=0,
             )
+        else:
+            benchmark_logger.info(f"Proceeding to run tests for {generated_files_count} generated file(s)...")
+            # Assume run_tests_flow returns TestRunMetrics or None
             metrics_result: Optional[TestRunMetrics] = test_controller.run_tests_flow(
                 test_files_details, interactive=False
             )
             if metrics_result:
-                metrics_data = metrics_result
+                # Populate BenchmarkTestMetrics from TestRunMetrics
+                result.metrics = BenchmarkTestMetrics(
+                    generated_test_files_count=generated_files_count,
+                    skipped_compilation_files_count=metrics_result.skipped_files,
+                    runnable_test_files_count=generated_files_count - metrics_result.skipped_files,
+                    total_tests_executed=metrics_result.total_tests,
+                    passed_tests=metrics_result.passed_tests,
+                    review_tests=metrics_result.review_tests,
+                )
             else:
                 benchmark_logger.warning(
-                    "Test run did not return metrics (e.g. skipped). Assuming 0 for all metrics."
+                    "Test run did not return metrics (e.g. skipped). Assuming 0 for all execution metrics."
                 )
-                metrics_data = TestRunMetrics(
-                    total_tests=0, passed_tests=0, review_tests=0, skipped_files=len(test_files_details)
+                # Create metrics with 0s for execution, reflect skipped files
+                result.metrics = BenchmarkTestMetrics(
+                    generated_test_files_count=generated_files_count,
+                    skipped_compilation_files_count=generated_files_count,  # Assume all skipped if no metrics
+                    runnable_test_files_count=0,
+                    total_tests_executed=0,
+                    passed_tests=0,
+                    review_tests=0,
                 )
 
-        current_llm_result_data["metrics"] = {
-            "generated_test_files_count": len(test_files_details) if test_files_details else 0,
-            "skipped_compilation_files_count": metrics_data.skipped_files,
-            "runnable_test_files_count": (len(test_files_details) if test_files_details else 0)
-            - metrics_data.skipped_files,
-            "total_tests_executed": metrics_data.total_tests,
-            "passed_tests": metrics_data.passed_tests,
-            "review_tests": metrics_data.review_tests,
-        }
-
-        current_llm_result_data["status"] = "COMPLETED"
-        current_llm_result_data["generated_framework_path"] = config.destination_folder
+        result.status = "COMPLETED"
+        result.generated_framework_path = dest_folder  # Use the folder name prepared earlier
 
     except Exception as e:
         benchmark_logger.error(f"Error during benchmark for LLM {llm_model_value}: {e}", exc_info=True)
-        current_llm_result_data["status"] = "FAILED"
-        current_llm_result_data["error_message"] = str(e)
+        result.status = "FAILED"
+        result.error_message = str(e)
     finally:
         end_time = time.monotonic()
         duration = end_time - start_time
-        current_llm_result_data["duration_seconds"] = round(duration, 2)
+        result.duration_seconds = round(duration, 2)
 
-    return current_llm_result_data
+    return result
 
 
 def _format_duration_for_display(duration_seconds: Optional[float]) -> str:
@@ -188,21 +224,23 @@ def _format_duration_for_display(duration_seconds: Optional[float]) -> str:
 
 
 def _generate_reports(
-    benchmark_results: List[Dict[str, Any]],
+    benchmark_results: List[BenchmarkResult],
     output_dir: str,
     benchmark_logger: logging.Logger,
-    report_timestamp: str,
-    args: argparse.Namespace,
+    openapi_spec: str,
+    endpoints: Optional[List[str]],
 ):
     """Generates and saves/prints benchmark reports."""
+    report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_report_path = os.path.join(output_dir, f"benchmark_report_{report_timestamp}.json")
+    results_for_json = [result.model_dump(mode="json") for result in benchmark_results]
     with open(json_report_path, "w") as f:
-        json.dump(benchmark_results, f, indent=4)
+        json.dump(results_for_json, f, indent=4)
     benchmark_logger.info(f"Detailed benchmark report saved to: {json_report_path}\n")
 
     print("--- Benchmark Summary Table ---\n")
-    print(f"OpenAPI Spec: {args.openapi_spec}")
-    print(f"Endpoints   : {', '.join(args.endpoints) if args.endpoints else 'All'}", "\n")
+    print(f"OpenAPI Spec: {openapi_spec}")
+    print(f"Endpoints   : {', '.join(endpoints) if endpoints else 'All'}", "\n")
 
     headers = [
         "LLM Model",
@@ -213,36 +251,36 @@ def _generate_reports(
         "Passed",
         "Review",
         "Duration",
+        "Input Tokens",
+        "Output Tokens",
+        "Total Cost ($)",
     ]
     table_data = []
     for result in benchmark_results:
-        metrics = result.get("metrics")
-        duration_seconds = result.get("duration_seconds")
-        formatted_duration = _format_duration_for_display(duration_seconds)
+        metrics = result.metrics
+        llm_usage = result.llm_usage_metadata
+        formatted_duration = _format_duration_for_display(result.duration_seconds)
+
+        formatted_cost = f"{llm_usage.total_cost:.4f}" if llm_usage else "N/A"
 
         row = [
-            result.get("llm_model_value", "N/A"),
+            result.llm_model_value,
+            metrics.generated_test_files_count if metrics else "N/A",
+            metrics.skipped_compilation_files_count if metrics else "N/A",
+            metrics.runnable_test_files_count if metrics else "N/A",
+            metrics.total_tests_executed if metrics else "N/A",
+            metrics.passed_tests if metrics else "N/A",
+            metrics.review_tests if metrics else "N/A",
+            formatted_duration,
+            llm_usage.total_input_tokens if llm_usage else "N/A",
+            llm_usage.total_output_tokens if llm_usage else "N/A",
+            formatted_cost,
         ]
-        if metrics:
-            row.extend(
-                [
-                    metrics.get("generated_test_files_count", "N/A"),
-                    metrics.get("skipped_compilation_files_count", "N/A"),
-                    metrics.get("runnable_test_files_count", "N/A"),
-                    metrics.get("total_tests_executed", "N/A"),
-                    metrics.get("passed_tests", "N/A"),
-                    metrics.get("review_tests", "N/A"),
-                    formatted_duration,
-                ]
-            )
-        else:
-            row.extend(["N/A"] * 6)
-            row.append(formatted_duration)
 
         table_data.append(row)
 
     if table_data:
-        table_string = tabulate(table_data, headers=headers, tablefmt="github")
+        table_string = tabulate(table_data, headers=headers, tablefmt="rounded_grid")
         for line in table_string.splitlines():
             print(line)
 
@@ -253,15 +291,13 @@ def _generate_reports(
         benchmark_logger.info("No benchmark data to display in table.")
 
 
-def run_benchmark(args: argparse.Namespace):
+def run_benchmark(args: argparse.Namespace, benchmark_logger: logging.Logger) -> List[BenchmarkResult]:
     """Main function to run the benchmark."""
-    benchmark_logger = _setup_benchmark_logger()
     load_dotenv(override=True)
 
     benchmark_logger.info("Starting API Generation Agent Benchmark")
 
-    benchmark_results: List[Dict[str, Any]] = []
-    report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    benchmark_results: List[BenchmarkResult] = []
 
     if args.load_results:
         benchmark_logger.info(f"Attempting to load results from: {args.load_results}")
@@ -288,18 +324,14 @@ def run_benchmark(args: argparse.Namespace):
         for llm_model_enum in args.llms:
             benchmark_logger.info(f"--- Running benchmark for LLM: {llm_model_enum.value} ---")
 
-            result_data = _run_benchmark_for_llm(llm_model_enum, args, benchmark_logger)
+            result_data = _run_benchmark_for_llm(
+                llm_model_enum, args.openapi_spec, args.endpoints, benchmark_logger
+            )
             benchmark_results.append(result_data)
 
             benchmark_logger.info(f"--- Finished processing LLM: {llm_model_enum.value} ---")
 
-    if not benchmark_results:
-        benchmark_logger.warning("No benchmark results to process. Exiting.")
-        return
-
-    _generate_reports(benchmark_results, args.output_dir, benchmark_logger, report_timestamp, args)
-
-    print("\n🏁 Benchmark finished 🏁")
+    return benchmark_results
 
 
 def main():
@@ -341,8 +373,19 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
-    _setup_benchmark_logger()
-    run_benchmark(args)
+    benchmark_logger = _setup_benchmark_logger()
+
+    benchmark_results = run_benchmark(args, benchmark_logger)
+
+    if not benchmark_results:
+        benchmark_logger.warning("No benchmark results generated or loaded. Skipping report generation.")
+    else:
+        benchmark_logger.info("Generating benchmark reports...")
+        _generate_reports(
+            benchmark_results, args.output_dir, benchmark_logger, args.openapi_spec, args.endpoints
+        )
+
+    print("\n🏁 Benchmark finished 🏁")
 
 
 if __name__ == "__main__":
