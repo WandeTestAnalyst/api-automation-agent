@@ -87,20 +87,23 @@ class TestController:
             new_error_files = self._extract_error_files(new_output)
 
             newly_discovered = []
+
             for err in new_error_files:
                 if err not in all_error_files:
                     all_error_files.add(err)
                     newly_discovered.append(err)
 
-                    with open(temp_tsconfig_path, "r", encoding="utf-8") as f:
-                        temp_config = json.load(f)
+            if newly_discovered:
+                with open(temp_tsconfig_path, "r", encoding="utf-8") as f:
+                    temp_config = json.load(f)
 
+                for err in newly_discovered:
                     rel_path = os.path.normpath(err).replace("\\", "/")
                     if rel_path not in temp_config["exclude"]:
                         temp_config["exclude"].append(rel_path)
 
-                    with open(temp_tsconfig_path, "w", encoding="utf-8") as f:
-                        json.dump(temp_config, f, indent=2)
+                with open(temp_tsconfig_path, "w", encoding="utf-8") as f:
+                    json.dump(temp_config, f, indent=2)
 
             if not newly_discovered:
                 break
@@ -110,12 +113,15 @@ class TestController:
         runnable_files = []
         skipped_files = []
 
+        remaining_errors = set(all_error_files)
+
         for test_file in test_file_paths_set:
             matched = False
-            for error_file in all_error_files:
+            for error_file in list(remaining_errors):
                 if error_file.endswith(test_file):
                     skipped_files.append(test_file)
                     matched = True
+                    remaining_errors.remove(error_file)
                     break
             if not matched:
                 runnable_files.append(test_file)
@@ -156,7 +162,7 @@ class TestController:
         with open(tsconfig_path, "r", encoding="utf-8") as f:
             base_tsconfig = json.load(f)
 
-        exclude = ["node_modules"]
+        exclude = []
         for file_path in excluded_files:
             abs_path = Path(self.config.destination_folder).resolve() / file_path
             rel_path = os.path.relpath(abs_path, self.config.destination_folder)
@@ -174,7 +180,7 @@ class TestController:
             "exclude": exclude,
         }
 
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix=".json", mode="w", encoding="utf-8")
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w", encoding="utf-8")
         json.dump(temp_config, temp_file, indent=2)
         temp_file.close()
         return temp_file.name
