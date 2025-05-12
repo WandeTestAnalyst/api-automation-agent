@@ -118,7 +118,7 @@ class TestController:
         for test_file in test_file_paths_set:
             matched = False
             for error_file in list(remaining_errors):
-                if error_file.endswith(test_file):
+                if os.path.normpath(error_file) == os.path.normpath(test_file):
                     skipped_files.append(test_file)
                     matched = True
                     remaining_errors.remove(error_file)
