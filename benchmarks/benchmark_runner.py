@@ -66,11 +66,9 @@ def _run_benchmark_for_llm(
 ) -> Dict[str, Any]:
     """Runs the benchmark for a single LLM model."""
     start_time = time.monotonic()
-    llm_model_name = llm_model_enum.name
     llm_model_value = llm_model_enum.value
 
     current_llm_result_data = {
-        "llm_model_name": llm_model_name,
         "llm_model_value": llm_model_value,
         "api_definition": args.openapi_spec,
         "endpoints": args.endpoints if args.endpoints else [],
@@ -162,7 +160,7 @@ def _run_benchmark_for_llm(
         current_llm_result_data["generated_framework_path"] = config.destination_folder
 
     except Exception as e:
-        benchmark_logger.error(f"Error during benchmark for LLM {llm_model_name}: {e}", exc_info=True)
+        benchmark_logger.error(f"Error during benchmark for LLM {llm_model_value}: {e}", exc_info=True)
         current_llm_result_data["status"] = "FAILED"
         current_llm_result_data["error_message"] = str(e)
     finally:
@@ -223,7 +221,7 @@ def _generate_reports(
         formatted_duration = _format_duration_for_display(duration_seconds)
 
         row = [
-            result.get("llm_model_name", "N/A"),
+            result.get("llm_model_value", "N/A"),
         ]
         if metrics:
             row.extend(
@@ -285,18 +283,15 @@ def run_benchmark(args: argparse.Namespace):
     else:
         benchmark_logger.info(f"OpenAPI Spec: {args.openapi_spec}")
         benchmark_logger.info(f"Endpoints: {', '.join(args.endpoints) if args.endpoints else 'All'}")
-        benchmark_logger.info(f"LLMs to benchmark: {[llm.name for llm in args.llms]}")
+        benchmark_logger.info(f"LLMs to benchmark: {[llm.value for llm in args.llms]}")
 
         for llm_model_enum in args.llms:
-            llm_model_name = llm_model_enum.name
-            benchmark_logger.info(
-                f"--- Running benchmark for LLM: {llm_model_name} ({llm_model_enum.value}) ---"
-            )
+            benchmark_logger.info(f"--- Running benchmark for LLM: {llm_model_enum.value} ---")
 
             result_data = _run_benchmark_for_llm(llm_model_enum, args, benchmark_logger)
             benchmark_results.append(result_data)
 
-            benchmark_logger.info(f"--- Finished processing LLM: {llm_model_name} ---")
+            benchmark_logger.info(f"--- Finished processing LLM: {llm_model_enum.value} ---")
 
     if not benchmark_results:
         benchmark_logger.warning("No benchmark results to process. Exiting.")
