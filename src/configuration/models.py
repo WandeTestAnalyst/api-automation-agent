@@ -8,16 +8,13 @@ class ModelCost(NamedTuple):
 
 
 class Model(Enum):
-    GPT_4_O = ("gpt-4o", ModelCost(input_cost_per_million_tokens=5.0, output_cost_per_million_tokens=15.0))
-    GPT_4_1 = (
-        "gpt-4.1",
-        ModelCost(input_cost_per_million_tokens=10.0, output_cost_per_million_tokens=30.0),
-    )  # Placeholder
+    GPT_4_O = ("gpt-4o", ModelCost(input_cost_per_million_tokens=5.5, output_cost_per_million_tokens=10.0))
+    GPT_4_1 = ("gpt-4.1", ModelCost(input_cost_per_million_tokens=2.0, output_cost_per_million_tokens=8.0))
     O3 = (
         "o3",
-        ModelCost(input_cost_per_million_tokens=0.5, output_cost_per_million_tokens=1.5),
+        ModelCost(input_cost_per_million_tokens=10.0, output_cost_per_million_tokens=40.0),
     )  # Placeholder for Opus
-    O4_MINI = ("o4-mini", ModelCost(input_cost_per_million_tokens=0.15, output_cost_per_million_tokens=0.6))
+    O4_MINI = ("o4-mini", ModelCost(input_cost_per_million_tokens=1.1, output_cost_per_million_tokens=4.4))
     CLAUDE_SONNET_3_5 = (
         "claude-3-5-sonnet-latest",
         ModelCost(input_cost_per_million_tokens=3.0, output_cost_per_million_tokens=15.0),
@@ -25,7 +22,7 @@ class Model(Enum):
     CLAUDE_SONNET_3_7 = (
         "claude-3-7-sonnet-latest",
         ModelCost(input_cost_per_million_tokens=3.0, output_cost_per_million_tokens=15.0),
-    )  # Placeholder - assuming same as 3.5 for now
+    )
 
     def __new__(cls, value, cost: ModelCost):
         obj = object.__new__(cls)
