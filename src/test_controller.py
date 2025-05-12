@@ -1,15 +1,18 @@
-from dataclasses import dataclass
 import re
 import sys
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Set
 from collections import defaultdict
 import subprocess
 import os
 import json
+import tempfile
+from pathlib import Path
+from dataclasses import dataclass
 from src.configuration.config import Config
 from src.services.command_service import CommandService
 from src.utils.logger import Logger
 from src.visuals.loading_animator import LoadingDotsAnimator
+import time
 
 
 @dataclass
@@ -19,32 +22,103 @@ class TestFileSet:
 
 
 class TestController:
-
     def __init__(self, config: Config, command_service: CommandService):
         self.command_service = command_service
         self.config = config
         self.logger = Logger.get_logger(__name__)
 
+    def run_tests_flow(self, test_files: List[Dict[str, str]]) -> None:
+        test_data = self._get_runnable_files(test_files)
+        runnable_files = test_data.runnable
+        skipped_files = test_data.skipped
+
+        if not runnable_files:
+            self.logger.warning("⚠️ No test files can be run due to compilation errors.")
+            return
+
+        if not self._prompt_to_run_tests():
+            self.logger.info("\n🔵 Test run skipped.")
+            return
+
+        results, hook_failures = self._run_tests(runnable_files, skipped_files)
+        self._report_tests(results, hook_failures)
+
     def _get_runnable_files(self, test_files: List[Dict[str, str]]) -> TestFileSet:
+        self.logger.info("\n🧪 Starting TypeScript compilation to find errors...\n")
 
-        success, tsc_output = self.command_service.run_typescript_compiler()
+        test_file_paths_set = {
+            os.path.normpath(os.path.relpath(f["path"], self.config.destination_folder)).replace("\\", "/")
+            for f in test_files
+        }
 
-        error_files = set()
-        if not success:
-            for line in tsc_output.split("\n"):
-                match = re.search(r"(src/tests/.*?\.spec\.ts)", line)
-                if match:
-                    error_files.add(os.path.normpath(match.group(1)))
+        try:
+            tsc_output = self.command_service.run_command_silently(
+                "npx tsc --noEmit", cwd=self.config.destination_folder
+            )
+        except subprocess.CalledProcessError as e:
+            tsc_output = e.output if hasattr(e, "output") else ""
+
+        all_error_files = self._extract_error_files(tsc_output)
+
+        if not all_error_files:
+            runnable_files = list(test_file_paths_set)
+            self.logger.info("✅ No errors found in compilation, continuing normally.\n")
+
+            if runnable_files:
+                self.logger.info("✅ Test files ready to run:")
+                for i, path in enumerate(runnable_files):
+                    self.logger.info(f"  - {path}")
+
+            return TestFileSet(runnable=runnable_files, skipped=[])
+
+        temp_tsconfig_path = self._generate_temp_tsconfig(all_error_files)
+
+        pass_count = 1
+        while pass_count < 5:
+
+            try:
+                new_output = self.command_service.run_command_silently(
+                    f"npx tsc --noEmit --project {temp_tsconfig_path}",
+                    cwd=self.config.destination_folder,
+                )
+            except subprocess.CalledProcessError as e:
+                new_output = e.output if hasattr(e, "output") else ""
+
+            new_error_files = self._extract_error_files(new_output)
+
+            newly_discovered = []
+            for err in new_error_files:
+                if err not in all_error_files:
+                    all_error_files.add(err)
+                    newly_discovered.append(err)
+
+                    with open(temp_tsconfig_path, "r", encoding="utf-8") as f:
+                        temp_config = json.load(f)
+
+                    rel_path = os.path.normpath(err).replace("\\", "/")
+                    if rel_path not in temp_config["exclude"]:
+                        temp_config["exclude"].append(rel_path)
+
+                    with open(temp_tsconfig_path, "w", encoding="utf-8") as f:
+                        json.dump(temp_config, f, indent=2)
+
+            if not newly_discovered:
+                break
+
+            pass_count += 1
 
         runnable_files = []
         skipped_files = []
 
-        for file in test_files:
-            rel_path = os.path.normpath(os.path.relpath(file["path"], self.config.destination_folder))
-            if any(rel_path.endswith(err_file) for err_file in error_files):
-                skipped_files.append(rel_path)
-            else:
-                runnable_files.append(rel_path)
+        for test_file in test_file_paths_set:
+            matched = False
+            for error_file in all_error_files:
+                if error_file.endswith(test_file):
+                    skipped_files.append(test_file)
+                    matched = True
+                    break
+            if not matched:
+                runnable_files.append(test_file)
 
         if runnable_files:
             self.logger.info("\n✅ Test files ready to run:")
@@ -60,6 +134,50 @@ class TestController:
 
         self.logger.info("\nFinal checks completed")
         return TestFileSet(runnable=runnable_files, skipped=skipped_files)
+
+    def _extract_error_files(self, tsc_output: str) -> Set[str]:
+        error_files = set()
+        root = Path(self.config.destination_folder).resolve()
+
+        for line in tsc_output.splitlines():
+            match = re.search(r"(.*?\.(ts|js))\(\d+,\d+\):", line.replace("\\", "/"))
+            if match:
+                raw_path = match.group(1)
+                full_path = (root / raw_path).resolve()
+                rel_path = os.path.relpath(full_path, root)
+                normalized = os.path.normpath(rel_path).replace("\\", "/")
+                error_files.add(normalized)
+
+        return error_files
+
+    def _generate_temp_tsconfig(self, excluded_files: Set[str]) -> str:
+        tsconfig_path = Path(self.config.destination_folder).resolve() / "tsconfig.json"
+
+        with open(tsconfig_path, "r", encoding="utf-8") as f:
+            base_tsconfig = json.load(f)
+
+        exclude = ["node_modules"]
+        for file_path in excluded_files:
+            abs_path = Path(self.config.destination_folder).resolve() / file_path
+            rel_path = os.path.relpath(abs_path, self.config.destination_folder)
+            exclude.append(os.path.normpath(rel_path).replace("\\", "/"))
+
+        includes = base_tsconfig.get("include", ["src/**/*"])
+        abs_includes = []
+        for pattern in includes:
+            abs_path = (Path(self.config.destination_folder).resolve() / pattern).as_posix()
+            abs_includes.append(abs_path)
+
+        temp_config = {
+            "compilerOptions": base_tsconfig.get("compilerOptions", {}),
+            "include": abs_includes,
+            "exclude": exclude,
+        }
+
+        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix=".json", mode="w", encoding="utf-8")
+        json.dump(temp_config, temp_file, indent=2)
+        temp_file.close()
+        return temp_file.name
 
     def _prompt_to_run_tests(self) -> bool:
         answer = input("\n🧪 Do you want to run the tests now? (y/n): ").strip().lower()
