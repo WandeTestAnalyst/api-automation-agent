@@ -99,8 +99,6 @@ class TestController:
                 f"--reporter json --timeout 10000 --no-warnings"
             )
 
-            # Environment variables for the subprocess to use the ESM loader
-            # and suppress specific Node.js warnings (ExperimentalWarning, DeprecationWarning)
             node_env_options = {
                 "NODE_OPTIONS": "--loader ts-node/esm --no-warnings=ExperimentalWarning --no-deprecation"
             }
@@ -109,13 +107,21 @@ class TestController:
                 stdout = self.command_service.run_command_silently(
                     command,
                     cwd=self.config.destination_folder,
-                    env_vars=node_env_options,  # Pass the NODE_OPTIONS here
+                    env_vars=node_env_options,
                 )
                 repaired_json_string = repair_json(stdout)
                 parsed = json.loads(repaired_json_string)
 
-                all_parsed_tests.extend(parsed.get("tests", []))
-                all_parsed_failures.extend(parsed.get("failures", []))
+                if isinstance(parsed, dict):
+                    all_parsed_tests.extend(parsed.get("tests", []))
+                    all_parsed_failures.extend(parsed.get("failures", []))
+                else:
+                    self.logger.warning(
+                        f"Mocha output for {test_file} was not a JSON object (got {type(parsed)}). "
+                        f"Skipping test/failure extraction for this file."
+                    )
+                    self.logger.debug(f"Parsed content for {test_file}: {parsed}")
+
                 animator.stop()
                 sys.stdout.write(f"\r{' ' * 80}\r✅ {file_name} ({index}/{total_files})\n")
             except subprocess.TimeoutExpired:
@@ -124,17 +130,15 @@ class TestController:
             except json.JSONDecodeError:
                 animator.stop()
                 self.logger.error(f"Failed to parse JSON from Mocha for {test_file}.")
-                self.logger.error(f"Original stdout:\n{stdout}")  # stdout should be available here
-                if (
-                    "repaired_json_string" in locals()
-                ):  # repaired_json_string might not exist if repair_json itself failed
+                self.logger.error(f"Original stdout:\n{stdout}")
+                if "repaired_json_string" in locals():
                     self.logger.error(f"After json_repair attempt:\n{repaired_json_string}")
                 sys.stdout.write(
                     f"\r❌ {file_name} ({index}/{total_files}) - "
                     "Failed to parse test output. Check agent logs.\n"
                 )
-            except Exception as e:  # General catch-all for other unexpected errors
-                if animator.is_running():
+            except Exception as e:
+                if not animator._stop_event.is_set():  # Check if the event is NOT set (i.e., running)
                     animator.stop()
                 self.logger.error(f"Unexpected error during test run for {test_file}: {e}", exc_info=True)
                 sys.stdout.write(
