@@ -13,7 +13,7 @@ class Model(Enum):
     O3 = (
         "o3",
         ModelCost(input_cost_per_million_tokens=10.0, output_cost_per_million_tokens=40.0),
-    )  # Placeholder for Opus
+    )
     O4_MINI = ("o4-mini", ModelCost(input_cost_per_million_tokens=1.1, output_cost_per_million_tokens=4.4))
     CLAUDE_SONNET_3_5 = (
         "claude-3-5-sonnet-latest",
