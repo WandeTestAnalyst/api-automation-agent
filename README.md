@@ -231,6 +231,12 @@ Or simply run it for the whole API
 python ./main.py http://localhost:3000/swagger.json
 ```
 
+## Performance Benchmarking
+
+This project includes a benchmark tool designed to evaluate the performance of different Large Language Models (LLMs) in generating API test frameworks using this agent. It automates running the agent against an OpenAPI specification for various LLMs and collects quantifiable metrics.
+
+For detailed instructions on how to set up, run, and interpret the benchmark results, please refer to the [Benchmark README](./benchmarks/README.md).
+
 ## Checkpoints
 
 The checkpoints feature allows you to save and restore the state of the framework generation process. This is useful if you need to interrupt the process and resume it later without losing progress.

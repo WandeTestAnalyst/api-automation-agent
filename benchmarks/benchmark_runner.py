@@ -225,22 +225,20 @@ def _format_duration_for_display(duration_seconds: Optional[float]) -> str:
 
 def _generate_reports(
     benchmark_results: List[BenchmarkResult],
-    output_dir: str,
     benchmark_logger: logging.Logger,
-    openapi_spec: str,
-    endpoints: Optional[List[str]],
+    args: argparse.Namespace,
 ):
     """Generates and saves/prints benchmark reports."""
     report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    json_report_path = os.path.join(output_dir, f"benchmark_report_{report_timestamp}.json")
+    json_report_path = os.path.join(args.output_dir, f"benchmark_report_{report_timestamp}.json")
     results_for_json = [result.model_dump(mode="json") for result in benchmark_results]
     with open(json_report_path, "w") as f:
         json.dump(results_for_json, f, indent=4)
     benchmark_logger.info(f"Detailed benchmark report saved to: {json_report_path}\n")
 
     print("--- Benchmark Summary Table ---\n")
-    print(f"OpenAPI Spec: {openapi_spec}")
-    print(f"Endpoints   : {', '.join(endpoints) if endpoints else 'All'}", "\n")
+    print(f"OpenAPI Spec: {args.openapi_spec}")
+    print(f"Endpoints   : {', '.join(args.endpoints) if args.endpoints else 'All'}", "\n")
 
     headers = [
         "LLM Model",
@@ -381,9 +379,7 @@ def main():
         benchmark_logger.warning("No benchmark results generated or loaded. Skipping report generation.")
     else:
         benchmark_logger.info("Generating benchmark reports...")
-        _generate_reports(
-            benchmark_results, args.output_dir, benchmark_logger, args.openapi_spec, args.endpoints
-        )
+        _generate_reports(benchmark_results, benchmark_logger, args)
 
     print("\n🏁 Benchmark finished 🏁")
 
