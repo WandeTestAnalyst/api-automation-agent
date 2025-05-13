@@ -332,8 +332,8 @@ def run_benchmark(args: argparse.Namespace, benchmark_logger: logging.Logger) ->
     return benchmark_results
 
 
-def main():
-    """Parses CLI arguments and starts the benchmark."""
+def _parse_args() -> argparse.Namespace:
+    """Parses CLI arguments."""
     parser = argparse.ArgumentParser(description="API Generation Agent Benchmark CLI")
 
     parser.add_argument(
@@ -367,8 +367,11 @@ def main():
         help="Optional: Path to a previously generated JSON report file to load results from. "
         "If provided, the benchmark generation and execution steps are skipped.",
     )
+    return parser.parse_args()
 
-    args = parser.parse_args()
+
+def main():
+    args = _parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
     benchmark_logger = _setup_benchmark_logger()
