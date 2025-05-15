@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pydantic
 from langchain_anthropic import ChatAnthropic
@@ -15,7 +15,7 @@ from ..configuration.config import Config
 from ..ai_tools.file_creation_tool import FileCreationTool
 from ..ai_tools.file_reading_tool import FileReadingTool
 from ..ai_tools.tool_converters import convert_tool_for_model
-from ..models.usage_data import LLMCallUsageData
+from ..models.usage_data import LLMCallUsageData, AggregatedUsageMetadata
 from ..utils.logger import Logger
 
 
@@ -55,6 +55,11 @@ class LLMService:
         self.config = config
         self.file_service = file_service
         self.logger = Logger.get_logger(__name__)
+        self.aggregated_usage_metadata = AggregatedUsageMetadata()
+
+    def get_aggregated_usage_metadata(self) -> AggregatedUsageMetadata:
+        """Returns the aggregated LLM usage metadata Pydantic model instance."""
+        return self.aggregated_usage_metadata
 
     def _select_language_model(
         self, language_model: Optional[Model] = None, override: bool = False
@@ -163,16 +168,17 @@ class LLMService:
 
                         cost = self._calculate_llm_call_cost(self.config.model, current_usage_metadata)
                         current_usage_metadata.cost = cost
+                        self.aggregated_usage_metadata.add_call_usage(current_usage_metadata)
 
                     except Exception as validation_error:
                         self.logger.warning(
                             f"Failed to validate usage metadata: {validation_error}. Using defaults."
                         )
                         current_usage_metadata = LLMCallUsageData()
+                        self.aggregated_usage_metadata.add_call_usage(current_usage_metadata)
                 else:
                     current_usage_metadata = LLMCallUsageData()
-
-                output_payload = {"usage_metadata": current_usage_metadata}
+                    self.aggregated_usage_metadata.add_call_usage(current_usage_metadata)
 
                 tool_map = {tool.name.lower(): tool for tool in all_tools}
 
@@ -181,11 +187,9 @@ class LLMService:
                     selected_tool = tool_map.get(tool_call["name"].lower())
 
                     if selected_tool:
-                        output_payload["result"] = selected_tool.invoke(tool_call["args"])
-                        return output_payload
+                        return selected_tool.invoke(tool_call["args"])
 
-                output_payload["result"] = response.content
-                return output_payload
+                return response.content
 
             return prompt_template | llm_with_tools | process_response
 
@@ -193,35 +197,29 @@ class LLMService:
             self.logger.error(f"Chain creation error: {e}")
             raise
 
-    def generate_dot_env(
-        self, api_definition: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], UsageMetadataPayload]:
+    def generate_dot_env(self, api_definition: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate .env file configuration."""
         chain_output = self.create_ai_chain(
             PromptConfig.DOT_ENV,
             tools=[FileCreationTool(self.config, self.file_service)],
             must_use_tool=True,
         ).invoke({"api_definition": api_definition})
-        result = json.loads(chain_output["result"])
-        usage_metadata = chain_output["usage_metadata"]
-        return result, usage_metadata
+        result = json.loads(chain_output)
+        return result
 
-    def generate_models(
-        self, api_definition: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], UsageMetadataPayload]:
+    def generate_models(self, api_definition: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate models from API definition."""
         chain_output = self.create_ai_chain(
             PromptConfig.MODELS,
             tools=[FileCreationTool(self.config, self.file_service, are_models=True)],
             must_use_tool=True,
         ).invoke({"api_definition": api_definition})
-        result = json.loads(chain_output["result"])
-        usage_metadata = chain_output["usage_metadata"]
-        return result, usage_metadata
+        result = json.loads(chain_output)
+        return result
 
     def generate_first_test(
         self, api_definition: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], UsageMetadataPayload]:
+    ) -> List[Dict[str, Any]]:
         """Generate first test from API definition and models."""
         prompt = None
         if self.config.data_source == DataSource.POSTMAN:
@@ -234,15 +232,14 @@ class LLMService:
             tools=[FileCreationTool(self.config, self.file_service)],
             must_use_tool=True,
         ).invoke({"api_definition": api_definition, "models": models})
-        result = json.loads(chain_output["result"])
-        usage_metadata = chain_output["usage_metadata"]
-        return result, usage_metadata
+        result = json.loads(chain_output)
+        return result
 
     def get_additional_models(
         self,
         relevant_models: List[Dict[str, Any]],
         available_models: List[Dict[str, Any]],
-    ) -> Tuple[Any, UsageMetadataPayload]:
+    ) -> Any:
         """Trigger read file tool to decide what additional model info is needed"""
         self.logger.info("\nGetting additional models...")
         chain_output = self.create_ai_chain(
@@ -255,16 +252,15 @@ class LLMService:
                 "available_models": available_models,
             }
         )
-        result = chain_output["result"]
-        usage_metadata = chain_output["usage_metadata"]
-        return result, usage_metadata
+        result = chain_output
+        return result
 
     def generate_additional_tests(
         self,
         tests: List[Dict[str, Any]],
         models: List[Dict[str, Any]],
         api_definition: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], UsageMetadataPayload]:
+    ) -> List[Dict[str, Any]]:
         """Generate additional tests from tests, models and an API definition."""
         chain_output = self.create_ai_chain(
             PromptConfig.ADDITIONAL_TESTS,
@@ -277,13 +273,12 @@ class LLMService:
                 "api_definition": api_definition,
             }
         )
-        result = json.loads(chain_output["result"])
-        usage_metadata = chain_output["usage_metadata"]
-        return result, usage_metadata
+        result = json.loads(chain_output)
+        return result
 
     def fix_typescript(
         self, files: List[Dict[str, str]], messages: List[str], are_models: bool = False
-    ) -> Tuple[None, UsageMetadataPayload]:
+    ) -> None:
         """
         Fix TypeScript files.
 
@@ -295,10 +290,9 @@ class LLMService:
         for file in files:
             self.logger.info(f"  - {file['path']}")
 
-        chain_output = self.create_ai_chain(
+        self.create_ai_chain(
             PromptConfig.FIX_TYPESCRIPT,
             tools=[FileCreationTool(self.config, self.file_service, are_models=are_models)],
             must_use_tool=True,
         ).invoke({"files": files, "messages": messages})
-        usage_metadata = chain_output["usage_metadata"]
-        return None, usage_metadata
+        return None

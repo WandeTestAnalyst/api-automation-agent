@@ -4,12 +4,12 @@ from typing import List, Dict, Any, Optional
 
 from src.processors.api_processor import APIProcessor
 from src.configuration.data_sources import DataSource
+from src.models.usage_data import AggregatedUsageMetadata
 
 from .configuration.config import Config, GenerationOptions
 from .services.command_service import CommandService
 from .services.file_service import FileService
 from .services.llm_service import LLMService
-from .models.usage_data import AggregatedUsageMetadata
 from .utils.checkpoint import Checkpoint
 from .utils.logger import Logger
 
@@ -33,8 +33,6 @@ class FrameworkGenerator:
         self.logger = Logger.get_logger(__name__)
         self.checkpoint = Checkpoint(self, "framework_generator", self.config.destination_folder)
 
-        self.aggregated_usage_metadata = AggregatedUsageMetadata()
-
         signal.signal(signal.SIGINT, self._handle_interrupt)
         signal.signal(signal.SIGTERM, self._handle_interrupt)
 
@@ -51,7 +49,7 @@ class FrameworkGenerator:
 
     def get_aggregated_usage_metadata(self) -> AggregatedUsageMetadata:
         """Returns the aggregated LLM usage metadata Pydantic model instance."""
-        return self.aggregated_usage_metadata
+        return self.llm_service.get_aggregated_usage_metadata()
 
     def save_state(self):
         self.checkpoint.save(
@@ -190,10 +188,9 @@ class FrameworkGenerator:
         path_name = self.api_processor.get_api_path_name(api_definition)
         try:
             self.logger.info(f"\nGenerating models for path: {path_name}")
-            models_result, usage_data = self.llm_service.generate_models(
+            models_result = self.llm_service.generate_models(
                 self.api_processor.get_api_path_content(api_definition)
             )
-            self.aggregated_usage_metadata.add_call_usage(usage_data)
 
             if models_result:
                 self.models_count += len(models_result)
@@ -220,19 +217,17 @@ class FrameworkGenerator:
             self.logger.info(f"\nGenerating first test for path: {verb_path} and verb: {verb_name}")
 
             if other_models:
-                additional_models_result, usage_data_get_models = self.llm_service.get_additional_models(
+                additional_models_result = self.llm_service.get_additional_models(
                     relevant_models, other_models
                 )
-                self.aggregated_usage_metadata.add_call_usage(usage_data_get_models)
                 if additional_models_result:
                     model_paths = [m.path for m in additional_models_result if hasattr(m, "path")]
                     self.logger.info(f"\nAdding additional models: {model_paths}")
                     relevant_models.extend(map(lambda x: x.to_json(), additional_models_result))
 
-            tests_result, usage_data_first_test = self.llm_service.generate_first_test(
+            tests_result = self.llm_service.generate_first_test(
                 self.api_processor.get_api_verb_content(api_verb), relevant_models
             )
-            self.aggregated_usage_metadata.add_call_usage(usage_data_first_test)
 
             if tests_result:
                 self.test_files_count += len(tests_result)
@@ -267,10 +262,9 @@ class FrameworkGenerator:
         try:
             self.logger.info(f"\nGenerating additional tests for path: {verb_path} and verb: {verb_name}")
 
-            additional_tests_result, usage_data = self.llm_service.generate_additional_tests(
+            additional_tests_result = self.llm_service.generate_additional_tests(
                 tests, models, self.api_processor.get_api_verb_content(api_definition)
             )
-            self.aggregated_usage_metadata.add_call_usage(usage_data)
 
             if additional_tests_result:
                 if len(additional_tests_result) > len(tests):
@@ -291,8 +285,7 @@ class FrameworkGenerator:
 
             def typescript_fix_wrapper(problematic_files, messages):
                 self.logger.info("\nAttempting to fix TypeScript errors with LLM...")
-                _, usage_data = self.llm_service.fix_typescript(problematic_files, messages, are_models)
-                self.aggregated_usage_metadata.add_call_usage(usage_data)
+                self.llm_service.fix_typescript(problematic_files, messages, are_models)
                 self.logger.info("TypeScript fixing attempt complete.")
 
             self.command_service.run_command_with_fix(
