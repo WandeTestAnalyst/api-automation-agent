@@ -55,6 +55,8 @@ Navigate to the project root directory in your terminal.
 
 The benchmark is run using the `benchmark_runner.py` script located in the `benchmarks/` directory.
 
+> **Note on Parallelism**: The benchmark tool runs the tests for each specified LLM in parallel to expedite the overall execution time. Each LLM's generation and test process is independent. For this reason, the logs in the terminal output can be confusing. Refer to the specific log file for each execution in the /logs folder.
+
 ```bash
 python benchmarks/benchmark_runner.py --openapi-spec <path_to_openapi_spec> --llms <LLM_LIST> [OPTIONS]
 ```
@@ -92,7 +94,12 @@ Upon completion, the benchmark tool generates a detailed JSON report and prints 
     *   Each object in the array corresponds to an LLM and includes all the metrics listed in the "Metrics Collected" section.
     *   This file is suitable for programmatic analysis.
 
-2.  **Summary Table (Console Output)**:
+2.  **CSV Report** (`benchmark_summary_<timestamp>.csv`):
+    *   This file contains a summary of the benchmark results in CSV format, similar to the console output table.
+    *   It includes key metrics like LLM Model, test file counts, test execution numbers, duration, token usage, and cost.
+    *   This file is suitable for quick analysis in spreadsheet software or for simple data ingestion.
+
+3.  **Summary Table (Console Output)**:
     *   A human-readable table is printed directly to the console, summarizing the key results for each LLM.
     *   It includes: LLM Model, Test Files, Skipped Files, Runnable Files, Tests Executed, Passed Tests, Tests for Review, Duration, Input Tokens, Output Tokens, and Total Cost.
     *   This provides a quick overview of the performance and a reference to the detailed JSON report.
