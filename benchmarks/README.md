@@ -76,7 +76,7 @@ python benchmarks/benchmark_runner.py --openapi-spec <path_to_openapi_spec> --ll
 **Example Usage**:
 
 ```bash
-python benchmarks/benchmark_runner.py --openapi-spec http://localhost:3000/swagger.json --endpoint /adopters --llms GPT_4_O,CLAUDE_SONNET_3_7 --output-dir ./benchmark_run_results
+python benchmarks/benchmark_runner.py --openapi-spec http://localhost:3000/swagger.json --endpoints /adopters --llms GPT_4_O,CLAUDE_SONNET_3_7 --output-dir ./benchmark_run_results
 ```
 
 This command will run the benchmark using the `http://localhost:3000/swagger.json` API definition, targeting the `/adopters` endpoint for the `GPT_4_O` and `CLAUDE_SONNET_3_7` models, saving results to the `./benchmark_run_results` directory.
