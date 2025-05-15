@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 import concurrent.futures
 import csv
 
+from src.utils.checkpoint import toggle_checkpoints
+
 # Add project root to Python path to allow importing project modules
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
@@ -123,6 +125,7 @@ def _run_benchmark_for_llm(
         )
 
         SrcLogger.configure_logger(config)
+        toggle_checkpoints(True)
 
         agent_setup_logger = SrcLogger.get_logger(__name__ + ".agent_setup")
         data_source = APIProcessor.set_data_source(openapi_spec, agent_setup_logger)
