@@ -398,6 +398,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main():
+    start_time = time.monotonic()  # Record start time
     args = _parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -411,7 +412,11 @@ def main():
         benchmark_logger.info("Generating benchmark reports...")
         _generate_reports(benchmark_results, benchmark_logger, args)
 
-    print("\n🏁 Benchmark finished 🏁")
+    end_time = time.monotonic()  # Record end time
+    total_duration_seconds = end_time - start_time
+    formatted_total_duration = _format_duration_for_display(total_duration_seconds)
+
+    print(f"\n🏁 Benchmark finished in {formatted_total_duration} 🏁")
 
 
 if __name__ == "__main__":
