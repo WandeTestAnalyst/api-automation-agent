@@ -11,8 +11,6 @@ from pydantic import BaseModel, Field
 import concurrent.futures
 import csv
 
-from src.utils.checkpoint import toggle_checkpoints
-
 # Add project root to Python path to allow importing project modules
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
@@ -29,6 +27,7 @@ from src.processors.api_processor import APIProcessor  # noqa: E402
 from src.framework_generator import FrameworkGenerator  # noqa: E402
 from src.test_controller import TestController, TestRunMetrics  # noqa: E402
 from src.models.usage_data import AggregatedUsageMetadata  # noqa: E402
+from src.utils.checkpoint import toggle_checkpoints  # noqa: E402
 
 
 class BenchmarkTestMetrics(BaseModel):
