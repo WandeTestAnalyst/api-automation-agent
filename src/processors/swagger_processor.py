@@ -9,7 +9,6 @@ from src.configuration.config import Config
 from .swagger import (
     APIDefinitionMerger,
     APIDefinitionSplitter,
-    FileLoader,
     APIDefinitionLoader,
 )
 from ..utils.logger import Logger

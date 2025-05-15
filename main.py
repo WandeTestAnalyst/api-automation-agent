@@ -4,7 +4,6 @@ import os
 import traceback
 
 from dependency_injector.wiring import inject, Provide
-from dependency_injector import providers
 from dotenv import load_dotenv
 
 from src.adapters.config_adapter import ProdConfigAdapter, DevConfigAdapter
@@ -59,7 +58,8 @@ def main(
                 or (args.generate != GenerationOptions.MODELS_AND_TESTS.value)
             ):
                 raise ValueError(
-                    "The specified CLI arguments are not supported for the current data source.🔍 Check the README.md document for more info."
+                    "The specified CLI arguments are not supported for the current data source. "
+                    "Check the README.md document for more info."
                 )
 
         handle_unsupported_cli_args(data_source, args)

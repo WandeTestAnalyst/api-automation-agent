@@ -4,6 +4,8 @@ from typing import List, Dict, Optional, Tuple, Set
 from collections import defaultdict
 import subprocess
 import json
+
+from json_repair import repair_json
 from pathlib import Path
 from dataclasses import dataclass
 from src.configuration.config import Config
@@ -16,6 +18,14 @@ from src.visuals.loading_animator import LoadingDotsAnimator
 class TestFileSet:
     runnable: List[str]
     skipped: List[str]
+
+
+@dataclass
+class TestRunMetrics:
+    total_tests: int
+    passed_tests: int
+    review_tests: int
+    skipped_files: int
 
 
 class TestController:
@@ -149,7 +159,9 @@ class TestController:
 
         return str(temp_file_path)
 
-    def _prompt_to_run_tests(self) -> bool:
+    def _prompt_to_run_tests(self, interactive: bool = True) -> bool:
+        if not interactive:
+            return True
         answer = input("\n🧪 Do you want to run the tests now? (y/n): ").strip().lower()
         return answer in ("y", "yes")
 
@@ -171,17 +183,34 @@ class TestController:
 
             ignore_flags = " ".join(f"--ignore {path}" for path in skipped_files)
             command = (
-                f"npx mocha --require mocha-suppress-logs -r ts-node/register {test_file} {ignore_flags} "
-                "--reporter json --timeout 10000 --no-warnings"
+                f"npx mocha --require mocha-suppress-logs --no-config "
+                f"--extension ts {test_file} {ignore_flags} "
+                f"--reporter json --timeout 10000 --no-warnings"
             )
+
+            node_env_options = {
+                "NODE_OPTIONS": "--loader ts-node/esm --no-warnings=ExperimentalWarning --no-deprecation"
+            }
 
             try:
                 stdout = self.command_service.run_command_silently(
-                    command, cwd=self.config.destination_folder
+                    command,
+                    cwd=self.config.destination_folder,
+                    env_vars=node_env_options,
                 )
-                parsed = json.loads(stdout)
-                all_parsed_tests.extend(parsed.get("tests", []))
-                all_parsed_failures.extend(parsed.get("failures", []))
+                repaired_json_string = repair_json(stdout)
+                parsed = json.loads(repaired_json_string)
+
+                if isinstance(parsed, dict):
+                    all_parsed_tests.extend(parsed.get("tests", []))
+                    all_parsed_failures.extend(parsed.get("failures", []))
+                else:
+                    self.logger.warning(
+                        f"Mocha output for {test_file} was not a JSON object (got {type(parsed)}). "
+                        f"Skipping test/failure extraction for this file."
+                    )
+                    self.logger.debug(f"Parsed content for {test_file}: {parsed}")
+
                 animator.stop()
                 sys.stdout.write(f"\r{' ' * 80}\r✅ {file_name} ({index}/{total_files})\n")
             except subprocess.TimeoutExpired:
@@ -189,14 +218,27 @@ class TestController:
                 sys.stdout.write(f"\r{' ' * 80}\r🔍 {file_name} ({index}/{total_files}) - Timed out.\n")
             except json.JSONDecodeError:
                 animator.stop()
+                self.logger.error(f"Failed to parse JSON from Mocha for {test_file}.")
+                self.logger.error(f"Original stdout:\n{stdout}")
+                if "repaired_json_string" in locals():
+                    self.logger.error(f"After json_repair attempt:\n{repaired_json_string}")
                 sys.stdout.write(
                     f"\r❌ {file_name} ({index}/{total_files}) - "
-                    "Failed to parse test output. Check if tests ran correctly.\n"
+                    "Failed to parse test output. Check agent logs.\n"
+                )
+            except Exception as e:
+                if not animator._stop_event.is_set():  # Check if the event is NOT set (i.e., running)
+                    animator.stop()
+                self.logger.error(f"Unexpected error during test run for {test_file}: {e}", exc_info=True)
+                sys.stdout.write(
+                    f"\r❌ {file_name} ({index}/{total_files}) - " f"Unexpected error. Check agent logs.\n"
                 )
 
         return all_parsed_tests, all_parsed_failures
 
-    def _report_tests(self, tests: List[Dict[str, str]], failures: List[Dict[str, str]] = []) -> None:
+    def _report_tests(
+        self, tests: List[Dict[str, str]], failures: List[Dict[str, str]] = []
+    ) -> Dict[str, int]:
         grouped_tests = defaultdict(list)
 
         seen = set()
@@ -210,6 +252,7 @@ class TestController:
 
         passed_tests = sum(1 for test in all_results if not test.get("err"))
         total_tests = len(all_results)
+        review_tests = total_tests - passed_tests
 
         for test in all_results:
             full_title = test.get("fullTitle", "")
@@ -229,19 +272,30 @@ class TestController:
 
         self.logger.info("\n🎉 Test run completed")
         self.logger.info(f"\n✅ {passed_tests} tests passed")
-        self.logger.info(f"🔍 {total_tests - passed_tests} tests flagged require further review\n")
+        self.logger.info(f"🔍 {review_tests} tests flagged require further review\n")
+        return {"total_tests": total_tests, "passed_tests": passed_tests, "review_tests": review_tests}
 
-    def run_tests_flow(self, test_files: List[Dict[str, str]]) -> None:
+    def run_tests_flow(
+        self, test_files: List[Dict[str, str]], interactive: bool = True
+    ) -> Optional[TestRunMetrics]:
         test_data = self._get_runnable_files(test_files)
         runnable_files = test_data.runnable
-        skipped_files = test_data.skipped
+        skipped_count = len(test_data.skipped)
 
         if not runnable_files:
-            return
+            self.logger.warning("⚠️ No test files can be run due to compilation errors.")
+            return TestRunMetrics(total_tests=0, passed_tests=0, review_tests=0, skipped_files=skipped_count)
 
-        if not self._prompt_to_run_tests():
+        if not self._prompt_to_run_tests(interactive=interactive):
             self.logger.info("\n🔵 Test run skipped.")
-            return
+            return None
 
-        results, hook_failures = self._run_tests(runnable_files, skipped_files)
-        self._report_tests(results, hook_failures)
+        results, hook_failures = self._run_tests(runnable_files, test_data.skipped)
+        report_metrics = self._report_tests(results, hook_failures)
+
+        return TestRunMetrics(
+            total_tests=report_metrics["total_tests"],
+            passed_tests=report_metrics["passed_tests"],
+            review_tests=report_metrics["review_tests"],
+            skipped_files=skipped_count,
+        )

@@ -4,8 +4,8 @@ from typing import List, Dict, Any, Optional
 
 from src.processors.api_processor import APIProcessor
 from src.configuration.data_sources import DataSource
+from src.models.usage_data import AggregatedUsageMetadata
 
-from .ai_tools.models.file_spec import FileSpec
 from .configuration.config import Config, GenerationOptions
 from .services.command_service import CommandService
 from .services.file_service import FileService
@@ -46,6 +46,10 @@ class FrameworkGenerator:
     def _log_error(self, message: str, exc: Exception):
         """Helper method to log errors consistently"""
         self.logger.error(f"{message}: {exc}")
+
+    def get_aggregated_usage_metadata(self) -> AggregatedUsageMetadata:
+        """Returns the aggregated LLM usage metadata Pydantic model instance."""
+        return self.llm_service.get_aggregated_usage_metadata()
 
     def save_state(self):
         self.checkpoint.save(
@@ -91,7 +95,6 @@ class FrameworkGenerator:
     def create_env_file(self, api_definitions):
         """Generate the .env file from the provided API definition"""
         try:
-            self.logger.info("\nGenerating .env file")
             self.api_processor.extract_env_vars(api_definitions)
         except Exception as e:
             self._log_error("Error creating .env file", e)
@@ -140,8 +143,10 @@ class FrameworkGenerator:
                                     }
                                 )
 
+                    verb_path_for_debug = self.api_processor.get_api_verb_path(verb)
+                    verb_name_for_debug = self.api_processor.get_api_verb_name(verb)
                     self.logger.debug(
-                        f"Generated tests for path: {self.api_processor.get_api_verb_path(verb)} - {self.api_processor.get_api_verb_name(verb)}"
+                        f"Generated tests for path: {verb_path_for_debug} - {verb_name_for_debug}"
                     )
             self.logger.info(
                 f"\nGeneration complete. "
@@ -179,26 +184,21 @@ class FrameworkGenerator:
 
     def _generate_models(self, api_definition: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         """Process a path definition and generate models"""
+        path_name = self.api_processor.get_api_path_name(api_definition)
         try:
-            self.logger.info(
-                f"\nGenerating models for path: {self.api_processor.get_api_path_name(api_definition)}"
+            self.logger.info(f"\nGenerating models for path: {path_name}")
+            models_result = self.llm_service.generate_models(
+                self.api_processor.get_api_path_content(api_definition)
             )
-            models = self.llm_service.generate_models(self.api_processor.get_api_path_content(api_definition))
-            if models:
-                self.models_count += len(models)
-                self._run_code_quality_checks(models, are_models=True)
 
+            if models_result:
+                self.models_count += len(models_result)
+                self._run_code_quality_checks(models_result, are_models=True)
             else:
-                self.logger.warning(
-                    f"No models generated for {self.api_processor.get_api_path_name(api_definition)}"
-                )
-
-            return models
+                self.logger.warning(f"No models generated for {path_name}")
+            return models_result
         except Exception as e:
-            self._log_error(
-                f"Error processing path definition for {self.api_processor.get_api_path_name(api_definition)}",
-                e,
-            )
+            self._log_error(f"Error processing path definition for {path_name}", e)
             raise
 
     def _generate_tests(
@@ -208,50 +208,45 @@ class FrameworkGenerator:
         generate_tests: GenerationOptions,
     ) -> Optional[List[Dict[str, Any]]]:
         """Generate tests for a specific verb (HTTP method) in the API definition"""
+        verb_path = self.api_processor.get_api_verb_path(api_verb)
+        verb_name = self.api_processor.get_api_verb_name(api_verb)
         try:
             relevant_models = self.api_processor.get_relevant_models(all_models, api_verb)
             other_models = self.api_processor.get_other_models(all_models, api_verb)
-            self.logger.info(
-                f"\nGenerating first test for path: {self.api_processor.get_api_verb_path(api_verb)} and verb: {self.api_processor.get_api_verb_name(api_verb)}"
-            )
+            self.logger.info(f"\nGenerating first test for path: {verb_path} and verb: {verb_name}")
 
             if other_models:
-                additional_models: List[FileSpec] = self.llm_service.get_additional_models(
-                    relevant_models,
-                    other_models,
+                additional_models_result = self.llm_service.get_additional_models(
+                    relevant_models, other_models
                 )
-                self.logger.info(f"\nAdding additional models: {[model.path for model in additional_models]}")
-                relevant_models.extend(map(lambda x: x.to_json(), additional_models))
+                if additional_models_result:
+                    model_paths = [m.path for m in additional_models_result if hasattr(m, "path")]
+                    self.logger.info(f"\nAdding additional models: {model_paths}")
+                    relevant_models.extend(map(lambda x: x.to_json(), additional_models_result))
 
-            tests = self.llm_service.generate_first_test(
+            tests_result = self.llm_service.generate_first_test(
                 self.api_processor.get_api_verb_content(api_verb), relevant_models
             )
 
-            if tests:
-                self.test_files_count += len(tests)
+            if tests_result:
+                self.test_files_count += len(tests_result)
                 self.save_state()
 
-                self._run_code_quality_checks(tests)
+                self._run_code_quality_checks(tests_result)
                 if generate_tests == GenerationOptions.MODELS_AND_TESTS:
-                    additional_tests = self._generate_additional_tests(
-                        tests,
+                    additional_tests_result = self._generate_additional_tests(
+                        tests_result,
                         relevant_models,
                         api_verb,
                     )
+                    return additional_tests_result
 
-                    return additional_tests
-
-                return tests
-
+                return tests_result
             else:
-                self.logger.warning(
-                    f"No tests generated for {self.api_processor.get_api_verb_path(api_verb)} - {self.api_processor.get_api_verb_name('verb')}"
-                )
+                self.logger.warning(f"No tests generated for {verb_path} - {verb_name}")
+                return None
         except Exception as e:
-            self._log_error(
-                f"Error processing verb definition for {self.api_processor.get_api_verb_path(api_verb)} - {self.api_processor.get_api_verb_name(api_verb)}",
-                e,
-            )
+            self._log_error(f"Error processing verb definition for {verb_path} - {verb_name}", e)
             raise
 
     def _generate_additional_tests(
@@ -259,38 +254,38 @@ class FrameworkGenerator:
         tests: List[Dict[str, Any]],
         models: List[Dict[str, Any]],
         api_definition: Dict[str, Any],
-    ):
+    ) -> Optional[List[Dict[str, Any]]]:
         """Generate additional tests based on the initial test and models"""
+        verb_path = self.api_processor.get_api_verb_path(api_definition)
+        verb_name = self.api_processor.get_api_verb_name(api_definition)
         try:
-            self.logger.info(
-                f"\nGenerating additional tests for path: {self.api_processor.get_api_verb_path(api_definition)} and verb: {self.api_processor.get_api_verb_name(api_definition)}"
+            self.logger.info(f"\nGenerating additional tests for path: {verb_path} and verb: {verb_name}")
+
+            additional_tests_result = self.llm_service.generate_additional_tests(
+                tests, models, self.api_processor.get_api_verb_content(api_definition)
             )
 
-            additional_tests = self.llm_service.generate_additional_tests(
-                tests,
-                models,
-                self.api_processor.get_api_path_content(api_definition),
-            )
-            if additional_tests:
+            if additional_tests_result:
+                if len(additional_tests_result) > len(tests):
+                    self.test_files_count += len(additional_tests_result) - len(tests)
+
                 self.save_state()
-                self._run_code_quality_checks(additional_tests)
-
-            return additional_tests
+                self._run_code_quality_checks(additional_tests_result)
+                return additional_tests_result
+            return tests
         except Exception as e:
-
-            self._log_error(
-                f"Error generating additional tests for {self.api_processor.get_api_verb_path(api_definition)} - {self.api_processor.get_api_verb_name(api_definition)}",
-                e,
-            )
-
-            raise
+            self._log_error(f"Error generating additional tests for {verb_path} - {verb_name}", e)
+            return tests
 
     def _run_code_quality_checks(self, files: List[Dict[str, Any]], are_models: bool = False):
         """Run code quality checks including TypeScript compilation, linting, and formatting"""
+        error_type = "models" if are_models else "tests"
         try:
 
             def typescript_fix_wrapper(problematic_files, messages):
+                self.logger.info("\nAttempting to fix TypeScript errors with LLM...")
                 self.llm_service.fix_typescript(problematic_files, messages, are_models)
+                self.logger.info("TypeScript fixing attempt complete.")
 
             self.command_service.run_command_with_fix(
                 self.command_service.run_typescript_compiler_for_files,
@@ -300,5 +295,4 @@ class FrameworkGenerator:
             self.command_service.format_files()
             self.command_service.run_linter()
         except Exception as e:
-            self._log_error("Error during code quality checks", e)
-            raise
+            self._log_error(f"Error during code quality checks for {error_type}", e)

@@ -103,14 +103,10 @@ class Checkpoint:
                     setattr(self.obj, key, value)
                 self.logger.info(f"🔄 Restored object state: {obj_state}")
 
-            function_state = {
-                var: saved_data[var] for var in saved_data if var != "self"
-            }
+            function_state = {var: saved_data[var] for var in saved_data if var != "self"}
             return function_state
 
-    def checkpoint_iter(
-        self, iterable: Iterable, tag: str, extra_state: Dict[str, Any] = None
-    ) -> Generator:
+    def checkpoint_iter(self, iterable: Iterable, tag: str, extra_state: Dict[str, Any] = None) -> Generator:
         """
         Wraps a for-loop to automatically save and restore progress.
 
@@ -139,9 +135,7 @@ class Checkpoint:
         if len(processed) == 0:
             self.logger.debug(f"🔄 Starting checkpoint '{tag}' from the beginning.")
         else:
-            self.logger.debug(
-                f"🔄 Already processed {len(processed)} items, resuming checkpoint '{tag}'."
-            )
+            self.logger.debug(f"🔄 Already processed {len(processed)} items, resuming checkpoint '{tag}'.")
 
         for item in remaining_items:
             yield item
@@ -186,11 +180,83 @@ class Checkpoint:
                     return result
                 except Exception as e:
                     self.save_state()
-                    Logger.get_logger(__name__).warning(
-                        f"⚠️ Exception occurred: {e}, state saved."
-                    )
+                    Logger.get_logger(__name__).warning(f"⚠️ Exception occurred: {e}, state saved.")
                     raise
 
             return wrapper
 
         return decorator
+
+
+# —————————————————————————————————————————————————————————
+# When checkpointing is disabled, swap out _all_ methods for no-ops:
+# —————————————————————————————————————————————————————————
+_ORIGINAL_METHODS = {
+    name: getattr(Checkpoint, name)
+    for name in (
+        "__init__",
+        "_default_save_state",
+        "_setup_default_save_state",
+        "_get_shelve_file_path",
+        "_shelve_exists",
+        "save_last_namespace",
+        "restore_last_namespace",
+        "get_last_namespace",
+        "save",
+        "restore",
+        "checkpoint_iter",
+        "clear",
+        "checkpoint",
+    )
+}
+
+
+# No-op stubs
+def _noop(*args, **kwargs):
+    pass
+
+
+def _restore_noop(*args, **kwargs):
+    return None
+
+
+def _iter_noop(self, iterable, tag, extra_state=None):
+    for item in iterable:
+        yield item
+
+
+def _checkpoint_noop(tag=None):
+    def decorator(func):
+        return func
+
+    return decorator
+
+
+_stub_map = {
+    "__init__": lambda self, *a, **k: None,
+    "_default_save_state": _noop,
+    "_setup_default_save_state": _noop,
+    "_get_shelve_file_path": lambda self: None,
+    "_shelve_exists": lambda self: False,
+    "save_last_namespace": _noop,
+    "restore_last_namespace": _noop,
+    "get_last_namespace": lambda self: "default",
+    "save": _noop,
+    "restore": _restore_noop,
+    "checkpoint_iter": _iter_noop,
+    "clear": staticmethod(_noop),
+    "checkpoint": staticmethod(_checkpoint_noop),
+}
+
+
+def toggle_checkpoints(disable: bool):
+    """
+    When disable=True, monkey-patch all Checkpoint methods to no-ops.
+    When disable=False, restore the originals.
+    """
+    if disable:
+        for name, fn in _stub_map.items():
+            setattr(Checkpoint, name, fn)
+    else:
+        for name, orig in _ORIGINAL_METHODS.items():
+            setattr(Checkpoint, name, orig)

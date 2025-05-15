@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import BaseTool
-from src.configuration.models import Model
+from src.configuration.models import Model, ModelCost
 from src.configuration.data_sources import DataSource
 
 from .file_service import FileService
@@ -15,7 +15,11 @@ from ..configuration.config import Config
 from ..ai_tools.file_creation_tool import FileCreationTool
 from ..ai_tools.file_reading_tool import FileReadingTool
 from ..ai_tools.tool_converters import convert_tool_for_model
+from ..models.usage_data import LLMCallUsageData, AggregatedUsageMetadata
 from ..utils.logger import Logger
+
+
+UsageMetadataPayload = LLMCallUsageData
 
 
 class PromptConfig:
@@ -51,6 +55,11 @@ class LLMService:
         self.config = config
         self.file_service = file_service
         self.logger = Logger.get_logger(__name__)
+        self.aggregated_usage_metadata = AggregatedUsageMetadata()
+
+    def get_aggregated_usage_metadata(self) -> AggregatedUsageMetadata:
+        """Returns the aggregated LLM usage metadata Pydantic model instance."""
+        return self.aggregated_usage_metadata
 
     def _select_language_model(
         self, language_model: Optional[Model] = None, override: bool = False
@@ -102,6 +111,17 @@ class LLMService:
             self.logger.error(f"Failed to load prompt from {prompt_path}: {e}")
             raise
 
+    def _calculate_llm_call_cost(self, model_enum: Model, usage_data: LLMCallUsageData) -> Optional[float]:
+        """Calculates the cost of a single LLM call based on token usage and model rates."""
+        try:
+            model_costs: ModelCost = model_enum.get_costs()
+            input_cost = (usage_data.input_tokens / 1_000_000) * model_costs.input_cost_per_million_tokens
+            output_cost = (usage_data.output_tokens / 1_000_000) * model_costs.output_cost_per_million_tokens
+            return input_cost + output_cost
+        except Exception as e:
+            self.logger.error(f"Error calculating LLM call cost for model {model_enum.value}: {e}")
+            return None
+
     def create_ai_chain(
         self,
         prompt_path: str,
@@ -119,8 +139,9 @@ class LLMService:
             language_model (Optional[BaseLanguageModel]): Language model to use
 
         Returns:
-            Configured AI processing chain
+            Any: Configured AI processing chain
         """
+
         try:
             all_tools = tools or []
 
@@ -141,6 +162,24 @@ class LLMService:
                 llm_with_tools = llm
 
             def process_response(response):
+                if response.usage_metadata is not None:
+                    try:
+                        current_usage_metadata = LLMCallUsageData.model_validate(response.usage_metadata)
+
+                        cost = self._calculate_llm_call_cost(self.config.model, current_usage_metadata)
+                        current_usage_metadata.cost = cost
+                        self.aggregated_usage_metadata.add_call_usage(current_usage_metadata)
+
+                    except Exception as validation_error:
+                        self.logger.warning(
+                            f"Failed to validate usage metadata: {validation_error}. Using defaults."
+                        )
+                        current_usage_metadata = LLMCallUsageData()
+                        self.aggregated_usage_metadata.add_call_usage(current_usage_metadata)
+                else:
+                    current_usage_metadata = LLMCallUsageData()
+                    self.aggregated_usage_metadata.add_call_usage(current_usage_metadata)
+
                 tool_map = {tool.name.lower(): tool for tool in all_tools}
 
                 if response.tool_calls:
@@ -160,23 +199,23 @@ class LLMService:
 
     def generate_dot_env(self, api_definition: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate .env file configuration."""
-        return json.loads(
-            self.create_ai_chain(
-                PromptConfig.DOT_ENV,
-                tools=[FileCreationTool(self.config, self.file_service)],
-                must_use_tool=True,
-            ).invoke({"api_definition": api_definition})
-        )
+        chain_output = self.create_ai_chain(
+            PromptConfig.DOT_ENV,
+            tools=[FileCreationTool(self.config, self.file_service)],
+            must_use_tool=True,
+        ).invoke({"api_definition": api_definition})
+        result = json.loads(chain_output)
+        return result
 
     def generate_models(self, api_definition: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate models from API definition."""
-        return json.loads(
-            self.create_ai_chain(
-                PromptConfig.MODELS,
-                tools=[FileCreationTool(self.config, self.file_service, are_models=True)],
-                must_use_tool=True,
-            ).invoke({"api_definition": api_definition})
-        )
+        chain_output = self.create_ai_chain(
+            PromptConfig.MODELS,
+            tools=[FileCreationTool(self.config, self.file_service, are_models=True)],
+            must_use_tool=True,
+        ).invoke({"api_definition": api_definition})
+        result = json.loads(chain_output)
+        return result
 
     def generate_first_test(
         self, api_definition: Dict[str, Any], models: List[Dict[str, Any]]
@@ -188,22 +227,22 @@ class LLMService:
         else:
             prompt = PromptConfig.FIRST_TEST
 
-        return json.loads(
-            self.create_ai_chain(
-                prompt,
-                tools=[FileCreationTool(self.config, self.file_service)],
-                must_use_tool=True,
-            ).invoke({"api_definition": api_definition, "models": models})
-        )
+        chain_output = self.create_ai_chain(
+            prompt,
+            tools=[FileCreationTool(self.config, self.file_service)],
+            must_use_tool=True,
+        ).invoke({"api_definition": api_definition, "models": models})
+        result = json.loads(chain_output)
+        return result
 
     def get_additional_models(
         self,
         relevant_models: List[Dict[str, Any]],
         available_models: List[Dict[str, Any]],
-    ):
+    ) -> Any:
         """Trigger read file tool to decide what additional model info is needed"""
         self.logger.info("\nGetting additional models...")
-        return self.create_ai_chain(
+        chain_output = self.create_ai_chain(
             PromptConfig.ADD_INFO,
             tools=[FileReadingTool(self.config, self.file_service)],
             must_use_tool=True,
@@ -213,6 +252,8 @@ class LLMService:
                 "available_models": available_models,
             }
         )
+        result = chain_output
+        return result
 
     def generate_additional_tests(
         self,
@@ -221,19 +262,19 @@ class LLMService:
         api_definition: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Generate additional tests from tests, models and an API definition."""
-        return json.loads(
-            self.create_ai_chain(
-                PromptConfig.ADDITIONAL_TESTS,
-                tools=[FileCreationTool(self.config, self.file_service)],
-                must_use_tool=True,
-            ).invoke(
-                {
-                    "tests": tests,
-                    "models": models,
-                    "api_definition": api_definition,
-                }
-            )
+        chain_output = self.create_ai_chain(
+            PromptConfig.ADDITIONAL_TESTS,
+            tools=[FileCreationTool(self.config, self.file_service)],
+            must_use_tool=True,
+        ).invoke(
+            {
+                "tests": tests,
+                "models": models,
+                "api_definition": api_definition,
+            }
         )
+        result = json.loads(chain_output)
+        return result
 
     def fix_typescript(
         self, files: List[Dict[str, str]], messages: List[str], are_models: bool = False
@@ -254,3 +295,4 @@ class LLMService:
             tools=[FileCreationTool(self.config, self.file_service, are_models=are_models)],
             must_use_tool=True,
         ).invoke({"files": files, "messages": messages})
+        return None
