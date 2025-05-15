@@ -9,6 +9,7 @@ from tabulate import tabulate
 import time
 from pydantic import BaseModel, Field
 import concurrent.futures
+import csv
 
 # Add project root to Python path to allow importing project modules
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -93,7 +94,6 @@ def _run_benchmark_for_llm(
     start_time = time.monotonic()
     llm_model_value = llm_model_enum.value
 
-    # Initialize parts of the result model first
     result = BenchmarkResult(
         llm_model_value=llm_model_value,
         api_definition=openapi_spec,
@@ -101,7 +101,6 @@ def _run_benchmark_for_llm(
     )
 
     try:
-        # Initialize DI Container and Config
         config_adapter = DevConfigAdapter()  # Uses .env for keys
         processors_adapter = ProcessorsAdapter(config=config_adapter.config)
         container = Container(config_adapter=config_adapter, processors_adapter=processors_adapter)
@@ -109,7 +108,6 @@ def _run_benchmark_for_llm(
 
         config: Config = container.config()
 
-        # Prepare destination folder name early
         dest_folder = f"{config.destination_folder}_benchmark_{llm_model_value}"
         config.update(
             {
@@ -147,7 +145,6 @@ def _run_benchmark_for_llm(
         framework_generator.generate(api_definitions, config.generate)
         test_files_details = framework_generator.run_final_checks(config.generate)
 
-        # Get AggregatedUsageMetadata object
         result.llm_usage_metadata = framework_generator.get_aggregated_usage_metadata()
 
         generated_files_count = len(test_files_details) if test_files_details else 0
@@ -156,7 +153,6 @@ def _run_benchmark_for_llm(
             benchmark_logger.warning(
                 "No test files were generated or passed final checks. Skipping test run."
             )
-            # Create metrics with 0s, but reflect skipped files
             result.metrics = BenchmarkTestMetrics(
                 generated_test_files_count=generated_files_count,
                 skipped_compilation_files_count=generated_files_count,  # All generated files were skipped
@@ -167,12 +163,10 @@ def _run_benchmark_for_llm(
             )
         else:
             benchmark_logger.info(f"Proceeding to run tests for {generated_files_count} generated file(s)...")
-            # Assume run_tests_flow returns TestRunMetrics or None
             metrics_result: Optional[TestRunMetrics] = test_controller.run_tests_flow(
                 test_files_details, interactive=False
             )
             if metrics_result:
-                # Populate BenchmarkTestMetrics from TestRunMetrics
                 result.metrics = BenchmarkTestMetrics(
                     generated_test_files_count=generated_files_count,
                     skipped_compilation_files_count=metrics_result.skipped_files,
@@ -185,10 +179,9 @@ def _run_benchmark_for_llm(
                 benchmark_logger.warning(
                     "Test run did not return metrics (e.g. skipped). Assuming 0 for all execution metrics."
                 )
-                # Create metrics with 0s for execution, reflect skipped files
                 result.metrics = BenchmarkTestMetrics(
                     generated_test_files_count=generated_files_count,
-                    skipped_compilation_files_count=generated_files_count,  # Assume all skipped if no metrics
+                    skipped_compilation_files_count=generated_files_count,
                     runnable_test_files_count=0,
                     total_tests_executed=0,
                     passed_tests=0,
@@ -196,7 +189,7 @@ def _run_benchmark_for_llm(
                 )
 
         result.status = "COMPLETED"
-        result.generated_framework_path = dest_folder  # Use the folder name prepared earlier
+        result.generated_framework_path = dest_folder
 
     except Exception as e:
         benchmark_logger.error(f"Error during benchmark for LLM {llm_model_value}: {e}", exc_info=True)
@@ -226,22 +219,89 @@ def _format_duration_for_display(duration_seconds: Optional[float]) -> str:
     return "N/A"
 
 
-def _generate_reports(
+def _generate_json_report(
     benchmark_results: List[BenchmarkResult],
+    output_dir: str,
+    report_timestamp: str,
     benchmark_logger: logging.Logger,
-    args: argparse.Namespace,
 ):
-    """Generates and saves/prints benchmark reports."""
-    report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    json_report_path = os.path.join(args.output_dir, f"benchmark_report_{report_timestamp}.json")
+    """Generates and saves the JSON benchmark report."""
+    json_report_path = os.path.join(output_dir, f"benchmark_report_{report_timestamp}.json")
     results_for_json = [result.model_dump(mode="json") for result in benchmark_results]
-    with open(json_report_path, "w") as f:
-        json.dump(results_for_json, f, indent=4)
-    benchmark_logger.info(f"Detailed benchmark report saved to: {json_report_path}\n")
+    try:
+        with open(json_report_path, "w") as f:
+            json.dump(results_for_json, f, indent=4)
+        benchmark_logger.info(f"Detailed benchmark report saved to: {json_report_path}\n")
+        return json_report_path
+    except IOError as e:
+        benchmark_logger.error(f"Failed to write JSON report to {json_report_path}: {e}")
+        return None
 
+
+def _generate_csv_report(
+    benchmark_results: List[BenchmarkResult],
+    output_dir: str,
+    report_timestamp: str,
+    benchmark_logger: logging.Logger,
+):
+    """Generates and saves the CSV benchmark summary report."""
+    csv_report_path = os.path.join(output_dir, f"benchmark_summary_{report_timestamp}.csv")
+    headers = [
+        "LLM Model",
+        "Test Files",
+        "Skipped Files",
+        "Run Files",
+        "Tests Run",
+        "Passed",
+        "Review",
+        "Duration",
+        "Input Tokens",
+        "Output Tokens",
+        "Total Cost ($)",
+    ]
+    table_data = []
+    for result in benchmark_results:
+        metrics = result.metrics
+        llm_usage = result.llm_usage_metadata
+        formatted_duration = _format_duration_for_display(result.duration_seconds)
+        formatted_cost = f"{llm_usage.total_cost:.4f}" if llm_usage else "N/A"
+
+        row = [
+            result.llm_model_value,
+            metrics.generated_test_files_count if metrics else "N/A",
+            metrics.skipped_compilation_files_count if metrics else "N/A",
+            metrics.runnable_test_files_count if metrics else "N/A",
+            metrics.total_tests_executed if metrics else "N/A",
+            metrics.passed_tests if metrics else "N/A",
+            metrics.review_tests if metrics else "N/A",
+            formatted_duration,
+            llm_usage.total_input_tokens if llm_usage else "N/A",
+            llm_usage.total_output_tokens if llm_usage else "N/A",
+            formatted_cost,
+        ]
+        table_data.append(row)
+
+    try:
+        with open(csv_report_path, "w", newline="") as f_csv:
+            writer = csv.writer(f_csv)
+            writer.writerow(headers)
+            writer.writerows(table_data)
+        benchmark_logger.info(f"Benchmark summary table saved to: {csv_report_path}\n")
+    except IOError as e:
+        benchmark_logger.error(f"Failed to write CSV report to {csv_report_path}: {e}")
+
+
+def _print_tabulate_report(
+    benchmark_results: List[BenchmarkResult],
+    openapi_spec_path: str,
+    endpoints: Optional[List[str]],
+    json_report_path: Optional[str],
+    benchmark_logger: logging.Logger,
+):
+    """Prints the benchmark summary table to the console."""
     print("--- Benchmark Summary Table ---\n")
-    print(f"OpenAPI Spec: {args.openapi_spec}")
-    print(f"Endpoints   : {', '.join(args.endpoints) if args.endpoints else 'All'}", "\n")
+    print(f"OpenAPI Spec: {openapi_spec_path}")
+    print(f"Endpoints   : {', '.join(endpoints) if endpoints else 'All'}", "\n")
 
     headers = [
         "LLM Model",
@@ -261,7 +321,6 @@ def _generate_reports(
         metrics = result.metrics
         llm_usage = result.llm_usage_metadata
         formatted_duration = _format_duration_for_display(result.duration_seconds)
-
         formatted_cost = f"{llm_usage.total_cost:.4f}" if llm_usage else "N/A"
 
         row = [
@@ -277,19 +336,36 @@ def _generate_reports(
             llm_usage.total_output_tokens if llm_usage else "N/A",
             formatted_cost,
         ]
-
         table_data.append(row)
 
     if table_data:
         table_string = tabulate(table_data, headers=headers, tablefmt="rounded_grid")
         for line in table_string.splitlines():
             print(line)
-
-        print(
-            f"\nFor detailed benchmark metadata, see the JSON report at: {os.path.normpath(json_report_path)}"
-        )
+        if json_report_path:
+            normalized_path = os.path.normpath(json_report_path)
+            print(f"\nFor detailed benchmark metadata, see the JSON report at: {normalized_path}")
     else:
         benchmark_logger.info("No benchmark data to display in table.")
+
+
+def _generate_reports(
+    benchmark_results: List[BenchmarkResult],
+    benchmark_logger: logging.Logger,
+    args: argparse.Namespace,
+):
+    """Generates and saves/prints benchmark reports."""
+    report_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    json_report_path = _generate_json_report(
+        benchmark_results, args.output_dir, report_timestamp, benchmark_logger
+    )
+
+    _generate_csv_report(benchmark_results, args.output_dir, report_timestamp, benchmark_logger)
+
+    _print_tabulate_report(
+        benchmark_results, args.openapi_spec, args.endpoints, json_report_path, benchmark_logger
+    )
 
 
 def run_benchmark(args: argparse.Namespace, benchmark_logger: logging.Logger) -> List[BenchmarkResult]:
@@ -398,7 +474,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main():
-    start_time = time.monotonic()  # Record start time
+    start_time = time.monotonic()
     args = _parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -412,7 +488,7 @@ def main():
         benchmark_logger.info("Generating benchmark reports...")
         _generate_reports(benchmark_results, benchmark_logger, args)
 
-    end_time = time.monotonic()  # Record end time
+    end_time = time.monotonic()
     total_duration_seconds = end_time - start_time
     formatted_total_duration = _format_duration_for_display(total_duration_seconds)
 
