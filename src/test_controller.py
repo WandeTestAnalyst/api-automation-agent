@@ -183,7 +183,8 @@ class TestController:
 
             ignore_flags = " ".join(f"--ignore {path}" for path in skipped_files)
             command = (
-                f"npx mocha --require mocha-suppress-logs --no-config --extension ts {test_file} {ignore_flags} "
+                f"npx mocha --require mocha-suppress-logs --no-config "
+                f"--extension ts {test_file} {ignore_flags} "
                 f"--reporter json --timeout 10000 --no-warnings"
             )
 
