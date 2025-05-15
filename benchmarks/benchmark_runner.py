@@ -8,6 +8,7 @@ from typing import List, Optional
 from tabulate import tabulate
 import time
 from pydantic import BaseModel, Field
+import concurrent.futures
 
 # Add project root to Python path to allow importing project modules
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -84,9 +85,11 @@ def parse_llms(llm_string: str) -> List[Model]:
 
 
 def _run_benchmark_for_llm(
-    llm_model_enum: Model, openapi_spec: str, endpoints: Optional[List[str]], benchmark_logger: logging.Logger
+    llm_model_enum: Model, openapi_spec: str, endpoints: Optional[List[str]]
 ) -> BenchmarkResult:
     """Runs the benchmark for a single LLM model."""
+    benchmark_logger = _setup_benchmark_logger()
+
     start_time = time.monotonic()
     llm_model_value = llm_model_enum.value
 
@@ -112,7 +115,7 @@ def _run_benchmark_for_llm(
             {
                 "api_definition": openapi_spec,
                 "destination_folder": dest_folder,
-                "endpoints": endpoints if endpoints else [],
+                "endpoints": endpoints if endpoints else None,
                 "generate": GenerationOptions.MODELS_AND_TESTS,
                 "model": llm_model_enum,
                 "use_existing_framework": False,
@@ -319,15 +322,39 @@ def run_benchmark(args: argparse.Namespace, benchmark_logger: logging.Logger) ->
         benchmark_logger.info(f"Endpoints: {', '.join(args.endpoints) if args.endpoints else 'All'}")
         benchmark_logger.info(f"LLMs to benchmark: {[llm.value for llm in args.llms]}")
 
-        for llm_model_enum in args.llms:
-            benchmark_logger.info(f"--- Running benchmark for LLM: {llm_model_enum.value} ---")
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            future_to_llm = {
+                executor.submit(
+                    _run_benchmark_for_llm, llm_model, args.openapi_spec, args.endpoints
+                ): llm_model
+                for llm_model in args.llms
+            }
 
-            result_data = _run_benchmark_for_llm(
-                llm_model_enum, args.openapi_spec, args.endpoints, benchmark_logger
-            )
-            benchmark_results.append(result_data)
+            for llm_model_enum in args.llms:
+                benchmark_logger.info(f"--- Submitting benchmark for LLM: {llm_model_enum.value} ---")
 
-            benchmark_logger.info(f"--- Finished processing LLM: {llm_model_enum.value} ---")
+            for future in concurrent.futures.as_completed(future_to_llm):
+                llm_model_enum = future_to_llm[future]
+                try:
+                    result_data = future.result()
+                    benchmark_results.append(result_data)
+                    benchmark_logger.info(
+                        f"--- Completed benchmark for LLM: {llm_model_enum.value} "
+                        f"(Status: {result_data.status}) ---"
+                    )
+                except Exception as exc:
+                    benchmark_logger.error(
+                        f"--- LLM {llm_model_enum.value} benchmark generated an exception: {exc} ---",
+                        exc_info=True,
+                    )
+                    failed_result = BenchmarkResult(
+                        llm_model_value=llm_model_enum.value,
+                        api_definition=args.openapi_spec,
+                        endpoints=args.endpoints if args.endpoints else [],
+                        status="FAILED",
+                        error_message=str(exc),
+                    )
+                    benchmark_results.append(failed_result)
 
     return benchmark_results
 

@@ -143,7 +143,6 @@ class FrameworkGenerator:
                                     }
                                 )
 
-                    # Break down long debug message further
                     verb_path_for_debug = self.api_processor.get_api_verb_path(verb)
                     verb_name_for_debug = self.api_processor.get_api_verb_name(verb)
                     self.logger.debug(
