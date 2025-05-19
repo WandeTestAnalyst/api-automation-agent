@@ -86,7 +86,7 @@ class SwaggerProcessor(APIProcessor):
             self.logger.error(f"Error processing API definition: {e}")
             raise
 
-    def extract_env_vars(self, api_definition: APIDefinition) -> list[str]:
+    def create_dot_env(self, api_definition: APIDefinition) -> list[str]:
         self.logger.info("\nGenerating .env file...")
 
         api_definition_str = api_definition.definitions[0].yaml

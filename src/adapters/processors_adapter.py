@@ -29,4 +29,8 @@ class ProcessorsAdapter(containers.DeclarativeContainer):
         file_service=file_service,
         config=config,
     )
-    postman_processor = providers.Factory(PostmanProcessor, file_service=file_service)
+    postman_processor = providers.Factory(
+        PostmanProcessor,
+        file_service=file_service,
+        config=config,
+    )
