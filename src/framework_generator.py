@@ -105,7 +105,7 @@ class FrameworkGenerator:
     def create_env_file(self, api_definition: APIDefinition):
         """Generate the .env file from the provided API definition"""
         try:
-            self.api_processor.extract_env_vars(api_definition)
+            self.api_processor.create_dot_env(api_definition)
         except Exception as e:
             self._log_error("Error creating .env file", e)
             raise
