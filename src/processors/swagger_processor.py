@@ -86,7 +86,7 @@ class SwaggerProcessor(APIProcessor):
             self.logger.error(f"Error processing API definition: {e}")
             raise
 
-    def create_dot_env(self, api_definition: APIDefinition) -> list[str]:
+    def create_dot_env(self, api_definition: APIDefinition) -> None:
         self.logger.info("\nGenerating .env file...")
 
         api_definition_str = api_definition.definitions[0].yaml
@@ -108,7 +108,6 @@ class SwaggerProcessor(APIProcessor):
         self.file_service.create_files(self.config.destination_folder, [file_spec])
 
         self.logger.info(f"Generated .env file with BASEURL={base_url}")
-        return []
 
     @staticmethod
     def _extract_base_url(api_spec):

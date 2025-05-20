@@ -26,21 +26,22 @@ class PostmanProcessor(APIProcessor):
     def process_api_definition(self, api_definition_path: str) -> APIDefinition:
         with open(api_definition_path, encoding="utf-8") as f:
             data = json.load(f)
-        return APIDefinition(PostmanUtils.extract_requests(data))
+        requests = PostmanUtils.extract_requests(data)
+        variables = PostmanUtils.extract_variables(data)
+        return APIDefinition(definitions=requests, variables=variables)
 
-    def create_dot_env(self, api_definition: APIDefinition) -> List[str]:
+    def create_dot_env(self, api_definition: APIDefinition) -> None:
         self.logger.info("\nGenerating .env file...")
-        env_vars = PostmanUtils.extract_env_vars(api_definition)
+        env_vars = api_definition.variables
 
         if not env_vars:
             self.logger.warning("⚠️ No environment variables found in Postman collection")
-            env_vars = ["BASEURL"]
+            env_vars = [{"key": "BASEURL", "value": ""}]
 
-        env_content = "\n".join(f"{var}=" for var in env_vars) + "\n"
+        env_content = "\n".join(f"{var['key']}={var['value']}" for var in env_vars) + "\n"
         file_spec = FileSpec(path=".env", fileContent=env_content)
         self.file_service.create_files(self.config.destination_folder, [file_spec])
-        self.logger.info(f"Generated .env file with variables: {', '.join(env_vars)}")
-        return env_vars
+        self.logger.info(f"Generated .env file with variables: {', '.join(var['key'] for var in env_vars)}")
 
     def get_api_paths(self, api_definition: APIDefinition) -> List[Dict[str, List[VerbInfo]]]:
         # Get all distinct paths without query params

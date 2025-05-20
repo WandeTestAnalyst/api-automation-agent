@@ -57,7 +57,7 @@ class APIProcessor(ABC):
         pass
 
     @abstractmethod
-    def create_dot_env(self, api_definition: APIDefinition) -> List[str]:
+    def create_dot_env(self, api_definition: APIDefinition) -> None:
         """Create the `.env` file from the API definition and return variable names"""
         pass
 
