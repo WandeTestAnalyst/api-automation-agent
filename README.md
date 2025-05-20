@@ -381,6 +381,18 @@ DEBUG=False          # Default: False (INFO level console output)
 LANGCHAIN_DEBUG=False  # Default: False (disabled)
 ```
 
+## Running Tests
+
+Unit and component tests use **pytest**. Install the test dependencies and run `pytest`:
+
+```bash
+pip install -r requirements.txt
+pip install pytest pytest-mock pytest-cov
+pytest
+```
+
+Tests are located in the `tests/` directory. External LLM calls should always be mocked to keep the suite fast and free of API costs.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
