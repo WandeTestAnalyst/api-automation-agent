@@ -38,10 +38,12 @@ class PostmanProcessor(APIProcessor):
             self.logger.warning("⚠️ No environment variables found in Postman collection")
             env_vars = [{"key": "BASEURL", "value": ""}]
 
-        env_content = "\n".join(f"{var['key']}={var['value']}" for var in env_vars) + "\n"
+        env_content = "\n".join(f"{var['key'].upper()}={var['value']}" for var in env_vars) + "\n"
         file_spec = FileSpec(path=".env", fileContent=env_content)
         self.file_service.create_files(self.config.destination_folder, [file_spec])
-        self.logger.info(f"Generated .env file with variables: {', '.join(var['key'] for var in env_vars)}")
+        self.logger.info(
+            f"Generated .env file with variables: {', '.join(var['key'].upper() for var in env_vars)}"
+        )
 
     def get_api_paths(self, api_definition: APIDefinition) -> List[Dict[str, List[VerbInfo]]]:
         # Get all distinct paths without query params
