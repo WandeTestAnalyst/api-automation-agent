@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from src.models.api_def import APIDef
 from src.models.api_path import APIPath
@@ -13,10 +13,15 @@ class APIDefinition:
 
     definitions: List[APIDef | RequestData] = field(default_factory=list)
     endpoints: Optional[List[str]] = None
+    variables: List[Dict[str, str]] = field(default_factory=list)
 
     def add_definition(self, definition: APIDef) -> None:
         """Add a definition to the list"""
         self.definitions.append(definition)
+
+    def add_variable(self, key: str, value: str) -> None:
+        """Add a variable to the list"""
+        self.variables.append({"key": key, "value": value})
 
     def get_paths(self) -> List[APIPath]:
         """Get all path definitions"""
@@ -50,4 +55,8 @@ class APIDefinition:
 
     def to_json(self) -> dict:
         """Convert to JSON-serializable dictionary"""
-        return {"definitions": [d.to_json() for d in self.definitions], "endpoints": self.endpoints}
+        return {
+            "definitions": [d.to_json() for d in self.definitions],
+            "endpoints": self.endpoints,
+            "variables": self.variables,
+        }

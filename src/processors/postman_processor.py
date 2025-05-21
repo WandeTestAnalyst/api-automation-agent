@@ -3,6 +3,8 @@ import json
 import os
 from typing import Dict, List
 
+from ..configuration.config import Config
+
 from .postman.models import VerbInfo, RequestData
 from ..ai_tools.models.file_spec import FileSpec
 from ..models import APIModel, APIVerb, GeneratedModel, ModelInfo, APIDefinition
@@ -15,18 +17,33 @@ from ..utils.logger import Logger
 class PostmanProcessor(APIProcessor):
     """Processes Postman API definitions."""
 
-    def __init__(self, file_service: FileService):
+    def __init__(self, file_service: FileService, config: Config):
         self.file_service = file_service
+        self.config = config
         self.logger = Logger.get_logger(__name__)
         self.service_dict = {}
 
     def process_api_definition(self, api_definition_path: str) -> APIDefinition:
         with open(api_definition_path, encoding="utf-8") as f:
             data = json.load(f)
-        return APIDefinition(PostmanUtils.extract_requests(data))
+        requests = PostmanUtils.extract_requests(data)
+        variables = PostmanUtils.extract_variables(data)
+        return APIDefinition(definitions=requests, variables=variables)
 
-    def extract_env_vars(self, api_definition: APIDefinition) -> List[str]:
-        return PostmanUtils.extract_env_vars(api_definition)
+    def create_dot_env(self, api_definition: APIDefinition) -> None:
+        self.logger.info("\nGenerating .env file...")
+        env_vars = api_definition.variables
+
+        if not env_vars:
+            self.logger.warning("⚠️ No environment variables found in Postman collection")
+            env_vars = [{"key": "BASEURL", "value": ""}]
+
+        env_content = "\n".join(f"{var['key'].upper()}={var['value']}" for var in env_vars) + "\n"
+        file_spec = FileSpec(path=".env", fileContent=env_content)
+        self.file_service.create_files(self.config.destination_folder, [file_spec])
+        self.logger.info(
+            f"Generated .env file with variables: {', '.join(var['key'].upper() for var in env_vars)}"
+        )
 
     def get_api_paths(self, api_definition: APIDefinition) -> List[Dict[str, List[VerbInfo]]]:
         # Get all distinct paths without query params
