@@ -3,7 +3,6 @@ import re
 from typing import Any, Dict, Iterable, List
 from urllib.parse import parse_qsl
 
-from ...models import APIDefinition
 from ...processors.postman.models import RequestData, VerbInfo
 
 
@@ -13,6 +12,16 @@ class PostmanUtils:
     """
 
     numeric_only = r"^\d+$"
+
+    @staticmethod
+    def extract_variables(data: Any) -> List[Dict[str, str]]:
+        """Extract variables from Postman data"""
+        variables = []
+        if isinstance(data, dict) and "variable" in data:
+            for var in data["variable"]:
+                if isinstance(var, dict) and "key" in var and "value" in var:
+                    variables.append({"key": var["key"], "value": var["value"]})
+        return variables
 
     @staticmethod
     def extract_requests(data: Any, path: str = "") -> List[RequestData]:
@@ -163,17 +172,6 @@ class PostmanUtils:
             ev = item.get("event")
             return isinstance(ev, list) and any("request" in e for e in ev)
         return False
-
-    @staticmethod
-    def extract_env_vars(requests: APIDefinition) -> List[str]:
-        evs = set()
-        for r in requests.definitions:
-            if r.path.startswith("{{"):
-                m = re.match(r"\{\{(.*?)}}", r.path)
-                if m:
-                    evs.add(m.group(1))
-                    break
-        return list(evs)
 
     @staticmethod
     def get_root_path(full_path: str) -> str:

@@ -108,8 +108,8 @@ def main(
             logger.info("\n✅ Endpoint listing completed successfully!")
         else:
             if not config.use_existing_framework:
-                framework_generator.setup_framework(api_definitions)
                 framework_generator.create_env_file(api_definitions)
+                framework_generator.setup_framework(api_definitions)
 
             framework_generator.generate(api_definitions, config.generate)
             test_files = framework_generator.run_final_checks(config.generate)
