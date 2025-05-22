@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any
 from .api_base import APIBase
 
@@ -7,11 +7,10 @@ from .api_base import APIBase
 class APIVerb(APIBase):
     """Represents an API verb (HTTP method) with its metadata"""
 
+    type: str = field(default="verb", init=False)
+
     verb: str
     root_path: str
-
-    def __post_init__(self):
-        self.type = "verb"
 
     def to_json(self) -> Dict[str, Any]:
         """Convert the verb to a JSON-serializable dictionary"""

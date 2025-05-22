@@ -2,6 +2,17 @@ import pytest
 from src.models.api_path import APIPath
 
 
+def test_api_path_instantiation():
+    """Test that APIPath instances are created with the correct type value."""
+    path = "/test/path"
+    yaml_content = "test: content"
+    api_path = APIPath(path=path, yaml=yaml_content)
+
+    assert api_path.type == "path"
+    assert api_path.path == path
+    assert api_path.yaml == yaml_content
+
+
 @pytest.mark.parametrize(
     "path,expected",
     [
@@ -18,3 +29,17 @@ from src.models.api_path import APIPath
 )
 def test_normalize_path(path, expected):
     assert APIPath.normalize_path(path) == expected
+
+
+def test_api_path_to_json():
+    """Test that APIPath instances are correctly converted to JSON."""
+    path = "/test/path"
+    yaml_content = "test: content"
+    api_path = APIPath(path=path, yaml=yaml_content)
+
+    json_data = api_path.to_json()
+    assert json_data == {
+        "path": path,
+        "yaml": yaml_content,
+        "type": "path",
+    }

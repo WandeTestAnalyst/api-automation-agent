@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-
+from dataclasses import dataclass, field
 from .api_base import APIBase
 
 
@@ -7,8 +6,7 @@ from .api_base import APIBase
 class APIPath(APIBase):
     """Represents an API path with its metadata"""
 
-    def __post_init__(self):
-        self.type = "path"
+    type: str = field(default="path", init=False)
 
     @staticmethod
     def normalize_path(path: str) -> str:
