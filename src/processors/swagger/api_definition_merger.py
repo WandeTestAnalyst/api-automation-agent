@@ -19,7 +19,7 @@ class APIDefinitionMerger:
 
         for item in api_definition_list:
             if isinstance(item, APIPath):
-                base_path = "/" + item.path.split("/", 2)[1]
+                base_path = APIPath.get_root_path(item.path)
                 if base_path not in merged_definitions:
                     item.path = base_path
                     merged_definitions[base_path] = copy.deepcopy(item)

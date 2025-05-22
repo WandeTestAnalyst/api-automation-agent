@@ -1,18 +1,14 @@
 from dataclasses import dataclass
-from typing import Dict, Any
+
+from .api_base import APIBase
 
 
 @dataclass
-class APIPath:
+class APIPath(APIBase):
     """Represents an API path with its metadata"""
 
-    path: str
-    yaml: str
-    type: str = "path"
-
-    def to_json(self) -> Dict[str, Any]:
-        """Convert the path to a JSON-serializable dictionary"""
-        return {"path": self.path, "yaml": self.yaml, "type": self.type}
+    def __post_init__(self):
+        self.type = "path"
 
     @staticmethod
     def normalize_path(path: str) -> str:
