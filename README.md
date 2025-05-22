@@ -231,6 +231,58 @@ Or simply run it for the whole API
 python ./main.py http://localhost:3000/swagger.json
 ```
 
+## Running Tests
+
+The project includes a comprehensive test suite to ensure code quality and functionality. Here's how to run and work with the tests:
+
+### Test Structure
+
+- Unit tests are located in `tests/unit/`
+- Integration tests are in `tests/integration/`
+- Test fixtures and mocks are in `tests/fixtures/`
+
+### Running the Test Suite
+
+1. Install test dependencies:
+   ```bash
+   pip install -r requirements.txt
+   pip install -r requirements-test.txt  # Additional test dependencies
+   ```
+
+2. Run all tests:
+   ```bash
+   pytest
+   ```
+
+3. Run specific test categories:
+   ```bash
+   pytest tests/unit/  # Run only unit tests
+   pytest tests/integration/  # Run only integration tests
+   ```
+
+4. Run tests with coverage report:
+   ```bash
+   pytest --cov=src --cov-report=term --cov-config=.coveragerc
+   ```
+
+### Test Best Practices
+
+- All external LLM calls are mocked to keep tests fast and free of API costs
+- Use the `@pytest.mark.asyncio` decorator for async tests
+- Follow the naming convention: `test_<function_name>_<scenario>`
+- Keep tests focused and isolated
+- Use fixtures for common setup and teardown
+
+### Writing New Tests
+
+When adding new tests:
+
+1. Place them in the appropriate directory based on test type
+2. Use descriptive names that explain the test scenario
+3. Mock external dependencies using `pytest-mock`
+4. Add appropriate assertions to verify behavior
+5. Consider edge cases and error scenarios
+
 ## Performance Benchmarking
 
 This project includes a benchmark tool designed to evaluate the performance of different Large Language Models (LLMs) in generating API test frameworks using this agent. It automates running the agent against an OpenAPI specification for various LLMs and collects quantifiable metrics.
