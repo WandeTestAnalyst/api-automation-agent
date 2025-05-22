@@ -32,4 +32,4 @@ class APIPath(APIBase):
 
         if start_index < len(parts):
             return "/" + "/".join(parts[start_index:])
-        return path
+        return "/"

@@ -25,6 +25,12 @@ def test_api_path_instantiation():
         ("/pets", "/pets"),
         ("/users/profile", "/users/profile"),
         ("/pets?limit=10", "/pets?limit=10"),
+        ("/api/v1/", "/"),
+        ("/api/v1", "/"),
+        ("/", "/"),
+        ("", ""),
+        ("//api//v1//pets", "/pets"),
+        ("/api/v1/pets/", "/pets"),
     ],
 )
 def test_normalize_path(path, expected):
