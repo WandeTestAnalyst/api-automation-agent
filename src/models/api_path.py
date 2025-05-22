@@ -1,18 +1,12 @@
-from dataclasses import dataclass
-from typing import Dict, Any
+from dataclasses import dataclass, field
+from .api_base import APIBase
 
 
 @dataclass
-class APIPath:
+class APIPath(APIBase):
     """Represents an API path with its metadata"""
 
-    path: str
-    yaml: str
-    type: str = "path"
-
-    def to_json(self) -> Dict[str, Any]:
-        """Convert the path to a JSON-serializable dictionary"""
-        return {"path": self.path, "yaml": self.yaml, "type": self.type}
+    type: str = field(default="path", init=False)
 
     @staticmethod
     def normalize_path(path: str) -> str:
@@ -38,4 +32,4 @@ class APIPath:
 
         if start_index < len(parts):
             return "/" + "/".join(parts[start_index:])
-        return path
+        return "/"
