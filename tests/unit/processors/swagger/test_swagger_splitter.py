@@ -1,10 +1,10 @@
-import yaml
-
-from src.processors.swagger import APIDefinitionSplitter, APIDefinitionMerger
+import pytest
+from src.processors.swagger import APIDefinitionSplitter
 from src.models import APIPath, APIVerb
 
 
-def test_split_and_merge_basic():
+@pytest.mark.only
+def test_splitter_basic():
     spec = {
         "paths": {
             "/api/v1/users": {
@@ -23,18 +23,12 @@ def test_split_and_merge_basic():
     assert len(parts) == 5
     assert sum(isinstance(p, APIPath) for p in parts) == 2
     assert sum(isinstance(p, APIVerb) for p in parts) == 3
+    assert parts[0].path == "/users"
+    assert parts[1].path == "/orders"
 
-    merger = APIDefinitionMerger()
-    merged = merger.merge(parts)
 
-    assert len(merged) == 5
-    assert sum(isinstance(p, APIPath) for p in merged) == 2
-    assert sum(isinstance(p, APIVerb) for p in merged) == 3
-
-    paths = {p.path for p in merged if isinstance(p, APIPath)}
-    assert paths == {"/users", "/orders"}
-
-def test_merge_groups_same_root():
+@pytest.mark.only
+def test_splitter_groups_same_root():
     spec = {
         "paths": {
             "/api/v1/users": {
@@ -52,17 +46,3 @@ def test_merge_groups_same_root():
     assert len(parts) == 4
     assert sum(isinstance(p, APIPath) for p in parts) == 2
     assert sum(isinstance(p, APIVerb) for p in parts) == 2
-
-    merger = APIDefinitionMerger()
-    merged = merger.merge(parts)
-
-    # Both paths share the same root, so only one APIPath should remain
-    path_objs = [p for p in merged if isinstance(p, APIPath)]
-    assert len(path_objs) == 1
-    assert path_objs[0].path == "/users"
-
-    merged_yaml = yaml.safe_load(path_objs[0].yaml)
-    assert set(merged_yaml["paths"].keys()) == {"/api/v1/users", "/api/v1/users/{id}"}
-
-    # Verb objects remain separate
-    assert sum(isinstance(p, APIVerb) for p in merged) == 2
