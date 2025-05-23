@@ -218,7 +218,7 @@ python ./main.py https://petstore.swagger.io/v2/swagger.json --endpoints /store
 ```
 
 These are simple and small examples that includes basic CRUD operations and are ideal for testing the agent's capabilities.
-Estimated cost (with claude-3-7-sonnet-latest) to run each example above: US$ ~0.1
+Estimated cost (with claude-sonnet-4-20250514) to run each example above: US$ ~0.3
 
 You can combine endpoints to test larger scenarios.:
 
