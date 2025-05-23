@@ -23,6 +23,10 @@ class Model(Enum):
         "claude-3-7-sonnet-latest",
         ModelCost(input_cost_per_million_tokens=3.0, output_cost_per_million_tokens=15.0),
     )
+    CLAUDE_SONNET_4 = (
+        "claude-sonnet-4-20250514",
+        ModelCost(input_cost_per_million_tokens=3.0, output_cost_per_million_tokens=15.0),
+    )
 
     def __new__(cls, value, cost: ModelCost):
         obj = object.__new__(cls)
@@ -38,6 +42,7 @@ class Model(Enum):
         return self in [
             Model.CLAUDE_SONNET_3_5,
             Model.CLAUDE_SONNET_3_7,
+            Model.CLAUDE_SONNET_4,
         ]
 
     def get_costs(self) -> ModelCost:
