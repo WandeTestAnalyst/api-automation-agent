@@ -1,4 +1,5 @@
 import copy
+import time
 from typing import Dict, List
 
 import yaml
@@ -15,6 +16,7 @@ class APIDefinitionSplitter:
 
     def split(self, api_definition: Dict) -> List[APIDef]:
         """Splits the API definition into smaller, manageable parts."""
+        start_time = time.time()
         self.logger.info("Splitting API definition into components...")
         api_definition_list = []
 
@@ -40,4 +42,5 @@ class APIDefinitionSplitter:
                 )
 
         self.logger.info("Successfully split API definition.")
+        self.logger.info(f"Time taken to split API definition: {time.time() - start_time:.2f} seconds")
         return api_definition_list

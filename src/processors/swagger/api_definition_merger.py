@@ -1,4 +1,5 @@
 import copy
+import time
 from typing import List
 
 import yaml
@@ -15,6 +16,7 @@ class APIDefinitionMerger:
 
     def merge(self, api_definition_list: List[APIDef]) -> List[APIDef]:
         """Merges API definitions by their base resources."""
+        start_time = time.time()
         merged_definitions = {}
 
         for item in api_definition_list:
@@ -34,4 +36,5 @@ class APIDefinitionMerger:
                 merged_definitions[f"{item.path}-{item.verb}"] = copy.deepcopy(item)
 
         self.logger.info(f"Merged {len(merged_definitions)} API definitions")
+        self.logger.info(f"Time taken to merge API definitions: {time.time() - start_time:.2f} seconds")
         return list(merged_definitions.values())

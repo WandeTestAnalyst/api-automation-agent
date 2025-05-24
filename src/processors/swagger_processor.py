@@ -1,7 +1,9 @@
 import json
+import time
 from typing import List, Optional
 
 import yaml
+from swagger_processor.swagger_processor import APIDefinitionProcessor
 
 from .swagger import (
     APIDefinitionMerger,
@@ -56,11 +58,49 @@ class SwaggerProcessor(APIProcessor):
             APIDefinition containing the processed API definitions.
         """
         try:
+            api = APIDefinitionProcessor(self.logger)
+            merged_definitions = api.process_api_definition(api_definition_path)
+
+            result = APIDefinition(endpoints=self.config.endpoints)
+            for definition in merged_definitions:
+                if definition["type"] == "path":
+                    result.add_definition(APIPath(path=definition["path"], yaml=definition["yaml"]))
+                elif definition["type"] == "verb":
+                    result.add_definition(
+                        APIVerb(
+                            verb=definition["verb"],
+                            path=definition["path"],
+                            root_path=APIVerb.get_root_path(definition["path"]),
+                            yaml=definition["yaml"],
+                        )
+                    )
+
+                self.logger.debug(f"\nType: {definition['type']}")
+                self.logger.debug(f"Path: {definition['path']}")
+                if definition["type"] == "verb":
+                    self.logger.debug(f"Verb: {definition['verb']}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error processing API definition: {e}")
+            raise
+
+    def process_api_definition_r(self, api_definition_path: str) -> APIDefinition:
+        """
+        Processes an API definition by loading, splitting, and merging its components.
+
+        Args:
+            api_definition_path (str): URL or path to the API definition.
+
+        Returns:
+            APIDefinition containing the processed API definitions.
+        """
+        try:
             self.logger.info("Starting API processing")
+            start_time = time.time()
             raw_definition = self.api_definition_loader.load(api_definition_path)
             split_definitions = self.splitter.split(raw_definition)
             merged_definitions = self.merger.merge(split_definitions)
-
+            self.logger.info(f"Time taken to process API definition: {time.time() - start_time:.2f} seconds")
             result = APIDefinition(endpoints=self.config.endpoints)
             for definition in merged_definitions:
                 if definition.type == "path":
@@ -81,6 +121,7 @@ class SwaggerProcessor(APIProcessor):
                     self.logger.debug(f"Verb: {definition.verb}")
 
             self.logger.info("Successfully processed API definition.")
+            self.logger.info(f"Time taken to process API definition: {time.time() - start_time:.2f} seconds")
             return result
         except Exception as e:
             self.logger.error(f"Error processing API definition: {e}")

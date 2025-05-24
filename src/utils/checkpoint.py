@@ -263,3 +263,6 @@ def toggle_checkpoints(disable: bool):
     else:
         for name, orig in _ORIGINAL_METHODS.items():
             setattr(Checkpoint, name, orig)
+
+
+toggle_checkpoints(True)
