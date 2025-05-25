@@ -7,9 +7,11 @@ use serde_json::{self, Value, Map};
 use serde_yaml;
 use std::collections::HashMap;
 use std::fs;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio;
 use once_cell::sync::Lazy;
+use dashmap::DashMap;
 
 use crate::logger::ThreadSafeLogger;
 use crate::types::{APIDef, APIPath, APIVerb};
@@ -34,6 +36,7 @@ impl APIDefinitionProcessor {
     #[new]
     fn new(logger: Option<Py<PyAny>>) -> PyResult<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(num_cpus::get().max(4))
             .enable_all()
             .build()
             .map_err(|e| PyException::new_err(format!("Failed to create async runtime: {}", e)))?;
@@ -54,35 +57,28 @@ impl APIDefinitionProcessor {
         }
 
         let start_time = Instant::now();
+
+        // Load and process the definition
+        println!("Loading API definition from file: {}", api_definition_path);
         let raw_definition = self.load_definition(py, api_definition_path)?;
-        let (base_yaml, split_definitions) = self.split_definition_optimized(py, &raw_definition)?;
-        let merged_definitions = self.merge_definitions_optimized(py, split_definitions)?;
 
-        let result_list = PyList::empty(py);
+        println!("Splitting API definition into components...");
+        let (base_yaml, split_definitions) = self.split_definition_parallel(&raw_definition)?;
+        println!("Successfully split API definition.");
 
-        for definition in merged_definitions {
-            let py_dict = PyDict::new(py);
-            match definition {
-                APIDef::Path(path) => {
-                    py_dict.set_item("type", "path")?;
-                    py_dict.set_item("path", path.path)?;
-                    py_dict.set_item("yaml", path.yaml)?;
-                }
-                APIDef::Verb(verb) => {
-                    py_dict.set_item("type", "verb")?;
-                    py_dict.set_item("verb", verb.verb)?;
-                    py_dict.set_item("path", verb.path)?;
-                    py_dict.set_item("root_path", verb.root_path)?;
-                    py_dict.set_item("yaml", verb.yaml)?;
-                }
-            }
-            result_list.append(py_dict)?;
-        }
+        let merged_definitions = self.merge_definitions_parallel(split_definitions)?;
+        println!("Merged {} API definitions", merged_definitions.len());
+
+        // Create result list
+        let result_list = self.create_result_list(py, merged_definitions)?;
+
+        let elapsed_time = start_time.elapsed().as_secs_f64();
+        println!("Time taken to process API definition: {:.2} seconds", elapsed_time);
 
         if let Some(ref logger) = self.logger {
             logger.info(py, &format!(
                 "Time taken to process API definition: {:.3}s",
-                start_time.elapsed().as_secs_f64()
+                elapsed_time
             ));
         }
 
@@ -137,7 +133,7 @@ impl APIDefinitionProcessor {
         }
     }
 
-    fn split_definition_optimized(&self, py: Python, api_definition: &Value) -> PyResult<(String, Vec<APIDef>)> {
+    fn split_definition_parallel(&self, api_definition: &Value) -> PyResult<(String, Vec<APIDef>)> {
         let start_time = Instant::now();
 
         let Some(paths) = api_definition.get("paths").and_then(|p| p.as_object()) else {
@@ -146,34 +142,31 @@ impl APIDefinitionProcessor {
             return Ok((empty_yaml, Vec::new()));
         };
 
-        // Create base definition once
+        // Create base definition synchronously first
         let base_definition = self.create_base_definition(api_definition);
         let base_yaml = serde_yaml::to_string(&base_definition)
             .map_err(|e| PyException::new_err(format!("YAML error: {}", e)))?;
 
-        // Pre-calculate capacity
-        let estimated_capacity = paths.len() * 6; // ~6 items per path on average
-        let path_entries: Vec<_> = paths.iter().collect();
+        // Convert to vector for parallel processing
+        let path_entries: Vec<(&String, &Value)> = paths.iter().collect();
 
-        let results: Result<Vec<_>, PyErr> = path_entries
+        // Process paths in parallel
+        let results: Result<Vec<Vec<APIDef>>, String> = path_entries
             .par_iter()
             .map(|(path, path_data)| {
                 let normalized_path = normalize_path(path);
                 self.process_single_path_optimized(path, &normalized_path, path_data)
+                    .map_err(|e| format!("Error processing path {}: {}", path, e))
             })
             .collect();
 
-        let mut api_definition_list = Vec::with_capacity(estimated_capacity);
-        for batch in results? {
-            api_definition_list.extend(batch);
-        }
+        let batch_results = results
+            .map_err(|e| PyException::new_err(e))?;
 
-        if let Some(ref logger) = self.logger {
-            logger.debug(py, &format!(
-                "Split {} paths in {:.3}s",
-                paths.len(),
-                start_time.elapsed().as_secs_f64()
-            ));
+        // Flatten results
+        let mut api_definition_list = Vec::new();
+        for batch in batch_results {
+            api_definition_list.extend(batch);
         }
 
         Ok((base_yaml, api_definition_list))
@@ -188,32 +181,54 @@ impl APIDefinitionProcessor {
         base
     }
 
-    fn process_single_path_optimized(&self, original_path: &str, normalized_path: &str, path_data: &Value) -> PyResult<Vec<APIDef>> {
+    fn process_single_path_optimized(&self, original_path: &str, normalized_path: &str, path_data: &Value) -> Result<Vec<APIDef>, String> {
         let Some(path_obj) = path_data.as_object() else {
             return Ok(Vec::new());
         };
 
         let mut definitions = Vec::with_capacity(path_obj.len() + 1);
 
-        // Create APIPath - single allocation
-        let path_yaml = self.create_path_yaml_fast(original_path, path_data)?;
+        // Pre-compute root path once
+        let root_path = get_root_path(normalized_path);
+
+        // Create APIPath
+        let path_yaml = self.create_path_yaml_fast(original_path, path_data)
+            .map_err(|e| format!("Path YAML error: {}", e))?;
         definitions.push(APIDef::Path(APIPath {
             path: normalized_path.to_string(),
             yaml: path_yaml,
         }));
 
-        // Pre-compute root path once
-        let root_path = get_root_path(normalized_path);
+        // Process verbs in parallel if there are many, otherwise sequential
+        if path_obj.len() > 3 {
+            let verb_entries: Vec<(&String, &Value)> = path_obj.iter().collect();
+            let verb_results: Result<Vec<APIDef>, String> = verb_entries
+                .par_iter()
+                .map(|(verb, verb_data)| {
+                    let verb_yaml = self.create_verb_yaml_fast(original_path, verb, verb_data)
+                        .map_err(|e| format!("Verb YAML error: {}", e))?;
+                    Ok(APIDef::Verb(APIVerb {
+                        verb: verb.to_ascii_uppercase(),
+                        path: normalized_path.to_string(),
+                        root_path: root_path.clone(),
+                        yaml: verb_yaml,
+                    }))
+                })
+                .collect();
 
-        // Create APIVerbs
-        for (verb, verb_data) in path_obj {
-            let verb_yaml = self.create_verb_yaml_fast(original_path, verb, verb_data)?;
-            definitions.push(APIDef::Verb(APIVerb {
-                verb: verb.to_ascii_uppercase(),
-                path: normalized_path.to_string(),
-                root_path: root_path.clone(),
-                yaml: verb_yaml,
-            }));
+            definitions.extend(verb_results?);
+        } else {
+            // Sequential processing for small verb sets
+            for (verb, verb_data) in path_obj {
+                let verb_yaml = self.create_verb_yaml_fast(original_path, verb, verb_data)
+                    .map_err(|e| format!("Verb YAML error: {}", e))?;
+                definitions.push(APIDef::Verb(APIVerb {
+                    verb: verb.to_ascii_uppercase(),
+                    path: normalized_path.to_string(),
+                    root_path: root_path.clone(),
+                    yaml: verb_yaml,
+                }));
+            }
         }
 
         Ok(definitions)
@@ -238,7 +253,7 @@ impl APIDefinitionProcessor {
             let mut buf = buffer.borrow_mut();
             buf.clear();
 
-            // Manual YAML construction for simple structure - much faster than serde
+            // Manual YAML construction for simple structure
             buf.push_str("paths:\n  \"");
             buf.push_str(path);
             buf.push_str("\":\n    ");
@@ -261,54 +276,66 @@ impl APIDefinitionProcessor {
         })
     }
 
-    fn merge_definitions_optimized(&self, py: Python, api_definition_list: Vec<APIDef>) -> PyResult<Vec<APIDef>> {
+    fn merge_definitions_parallel(&self, api_definition_list: Vec<APIDef>) -> PyResult<Vec<APIDef>> {
         let start_time = Instant::now();
 
-        let mut merged_definitions: HashMap<String, APIDef> = HashMap::with_capacity(api_definition_list.len());
+        // Use DashMap for thread-safe concurrent operations
+        let merged_definitions: DashMap<String, APIDef> = DashMap::with_capacity(api_definition_list.len());
 
-        for item in api_definition_list {
-            match item {
-                APIDef::Path(mut path) => {
-                    let base_path = get_root_path(&path.path);
+        // Process definitions in parallel chunks
+        let chunk_size = (api_definition_list.len() / rayon::current_num_threads()).max(100);
 
-                    match merged_definitions.get_mut(&base_path) {
-                        Some(APIDef::Path(existing_path)) => {
-                            // Fast YAML merge using string manipulation
-                            self.merge_path_yaml_fast(&mut existing_path.yaml, &path.yaml)?;
+        let processing_result: Result<(), String> = api_definition_list
+            .par_chunks(chunk_size)
+            .map(|chunk| -> Result<(), String> {
+                for item in chunk {
+                    match item {
+                        APIDef::Path(path) => {
+                            let base_path = get_root_path(&path.path);
+
+                            // Use DashMap's atomic operations for thread-safe merging
+                            merged_definitions
+                                .entry(base_path.clone())
+                                .and_modify(|existing| {
+                                    if let APIDef::Path(existing_path) = existing {
+                                        // Fast YAML merge
+                                        let _ = self.merge_path_yaml_fast(&mut existing_path.yaml, &path.yaml);
+                                    }
+                                })
+                                .or_insert_with(|| {
+                                    let mut new_path = path.clone();
+                                    new_path.path = base_path;
+                                    APIDef::Path(new_path)
+                                });
                         }
-                        None => {
-                            path.path = base_path.clone();
-                            merged_definitions.insert(base_path, APIDef::Path(path));
+                        APIDef::Verb(verb) => {
+                            let key = format!("{}-{}", verb.path, verb.verb);
+                            merged_definitions.insert(key, APIDef::Verb(verb.clone()));
                         }
-                        _ => unreachable!("Path key should only map to Path"),
                     }
                 }
-                APIDef::Verb(verb) => {
-                    let key = format!("{}-{}", verb.path, verb.verb);
-                    merged_definitions.insert(key, APIDef::Verb(verb));
+                Ok(())
+            })
+            .reduce(|| Ok(()), |acc, result| {
+                match (acc, result) {
+                    (Ok(()), Ok(())) => Ok(()),
+                    (Err(e), _) | (_, Err(e)) => Err(e),
                 }
-            }
-        }
+            });
 
-        let final_definitions: Vec<APIDef> = merged_definitions.into_values().collect();
+        processing_result.map_err(|e| PyException::new_err(e))?;
 
-        if let Some(ref logger) = self.logger {
-            logger.debug(py, &format!(
-                "Merged to {} definitions in {:.3}s",
-                final_definitions.len(),
-                start_time.elapsed().as_secs_f64()
-            ));
-        }
+        let final_definitions: Vec<APIDef> = merged_definitions.into_iter().map(|(_, v)| v).collect();
 
         Ok(final_definitions)
     }
 
-    fn merge_path_yaml_fast(&self, existing_yaml: &mut String, new_yaml: &str) -> PyResult<()> {
+    fn merge_path_yaml_fast(&self, existing_yaml: &mut String, new_yaml: &str) -> Result<(), String> {
         // Parse both YAML strings
         let existing_val: Value = serde_yaml::from_str(existing_yaml)
-            .map_err(|e| PyException::new_err(format!("YAML parse error: {}", e)))?;
+            .map_err(|e| format!("YAML parse error: {}", e))?;
         let new_val: Value = serde_yaml::from_str(new_yaml)
-            .map_err(|e| PyException::new_err(format!("YAML parse error: {}", e)))?;
+            .map_err(|e| format!("YAML parse error: {}", e))?;
 
         // Merge objects
         let mut merged = existing_val.as_object().unwrap().clone();
@@ -320,8 +347,33 @@ impl APIDefinitionProcessor {
 
         // Convert back to YAML
         *existing_yaml = serde_yaml::to_string(&Value::Object(merged))
-            .map_err(|e| PyException::new_err(format!("YAML conversion error: {}", e)))?;
+            .map_err(|e| format!("YAML conversion error: {}", e))?;
 
         Ok(())
+    }
+
+    fn create_result_list(&self, py: Python, merged_definitions: Vec<APIDef>) -> PyResult<Py<PyList>> {
+        let result_list = PyList::empty(py);
+
+        for definition in merged_definitions {
+            let py_dict = PyDict::new(py);
+            match definition {
+                APIDef::Path(path) => {
+                    py_dict.set_item("type", "path")?;
+                    py_dict.set_item("path", path.path)?;
+                    py_dict.set_item("yaml", path.yaml)?;
+                }
+                APIDef::Verb(verb) => {
+                    py_dict.set_item("type", "verb")?;
+                    py_dict.set_item("verb", verb.verb)?;
+                    py_dict.set_item("path", verb.path)?;
+                    py_dict.set_item("root_path", verb.root_path)?;
+                    py_dict.set_item("yaml", verb.yaml)?;
+                }
+            }
+            result_list.append(py_dict)?;
+        }
+
+        Ok(result_list.into())
     }
 }

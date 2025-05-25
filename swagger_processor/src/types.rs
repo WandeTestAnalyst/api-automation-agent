@@ -1,5 +1,4 @@
 use pyo3::exceptions::PyException;
-use serde_json::Value;
 
 // Custom exception for API definition errors
 pyo3::create_exception!(api_definition, APIDefinitionError, PyException);
