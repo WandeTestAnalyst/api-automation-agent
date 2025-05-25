@@ -18,6 +18,6 @@ class APIBase:
     def get_root_path(path: str) -> str:
         """Gets the root path from a full path, preserving version numbers if present"""
         parts = path.strip("/").split("/")
-        if len(parts) > 1 and parts[0].startswith("v") and parts[0][1:].isdigit():
+        if len(parts) > 1 and parts[0].startswith("v") and parts[0][1].isdigit():
             return "/" + "/".join(parts[:2])
         return "/" + parts[0]

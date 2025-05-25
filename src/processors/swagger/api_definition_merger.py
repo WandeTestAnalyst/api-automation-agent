@@ -34,9 +34,4 @@ class APIDefinitionMerger:
                 merged_definitions[f"{item.path}-{item.verb}"] = copy.deepcopy(item)
 
         self.logger.info(f"Merged {len(merged_definitions)} API definitions")
-        for api_definition in merged_definitions.values():
-            if isinstance(api_definition, APIPath):
-                self.logger.info(f"Path: {api_definition.path}")
-            elif isinstance(api_definition, APIVerb):
-                self.logger.info(f"Verb: {api_definition.path} - {api_definition.verb}")
         return list(merged_definitions.values())
