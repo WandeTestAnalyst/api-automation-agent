@@ -1,0 +1,9 @@
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-L/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/config-3.12-darwin",
+    "-C", "link-arg=-lpython3.12",
+    "-C", "link-arg=-framework", "-C", "link-arg=CoreFoundation",
+]
+
+[env]
+PYTHON_SYS_EXECUTABLE = { value = "python3", force = true } 
