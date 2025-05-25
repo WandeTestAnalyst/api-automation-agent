@@ -31,3 +31,9 @@ def test_get_processor_for_unsupported_value():
     container = _create_container()
     with pytest.raises(ValueError):
         get_processor_for_data_source(DataSource.NONE, container)
+
+
+def test_get_processor_for_invalid_value():
+    container = _create_container()
+    with pytest.raises(ValueError):
+        get_processor_for_data_source("Invalid_Value", container)
