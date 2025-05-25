@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import yaml
 
@@ -13,31 +13,31 @@ class APIDefinitionSplitter:
     def __init__(self):
         self.logger = Logger.get_logger(__name__)
 
-    def split(self, api_definition: Dict) -> List[APIDef]:
-        """Splits the API definition into smaller, manageable parts."""
+    def split(self, api_definition: Dict) -> Tuple[str, List[APIDef]]:
+        """Splits the API definition into base and path/verb components."""
         self.logger.info("Splitting API definition into components...")
-        api_definition_list = []
+        api_definition_list: List[APIDef] = []
+
+        base_definition = copy.deepcopy(api_definition)
+        base_definition.pop("paths", None)
+        base_yaml = yaml.dump(base_definition, sort_keys=False)
 
         for path, path_data in api_definition.get("paths", {}).items():
             normalized_path = APIPath.normalize_path(path)
 
-            path_copy = copy.deepcopy(api_definition)
-            path_copy["paths"] = {path: path_data}
             api_definition_list.append(
-                APIPath(path=normalized_path, yaml=yaml.dump(path_copy, sort_keys=False))
+                APIPath(path=normalized_path, yaml=yaml.dump({path: path_data}, sort_keys=False))
             )
 
             for verb, verb_data in path_data.items():
-                verb_copy = copy.deepcopy(path_copy)
-                verb_copy["paths"][path] = {verb: verb_data}
                 api_definition_list.append(
                     APIVerb(
                         verb=verb.upper(),
                         path=normalized_path,
                         root_path=APIVerb.get_root_path(normalized_path),
-                        yaml=yaml.dump(verb_copy, sort_keys=False),
+                        yaml=yaml.dump({path: {verb: verb_data}}, sort_keys=False),
                     )
                 )
 
         self.logger.info("Successfully split API definition.")
-        return api_definition_list
+        return base_yaml, api_definition_list

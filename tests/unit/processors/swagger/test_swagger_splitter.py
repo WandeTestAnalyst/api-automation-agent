@@ -1,5 +1,6 @@
 from src.processors.swagger import APIDefinitionSplitter
 from src.models import APIPath, APIVerb
+import yaml
 
 
 def test_splitter_basic():
@@ -13,7 +14,9 @@ def test_splitter_basic():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    base_yaml, parts = splitter.split(spec)
+
+    assert yaml.safe_load(base_yaml) == {}
 
     assert len(parts) == 3
     assert sum(isinstance(p, APIPath) for p in parts) == 1
@@ -42,7 +45,7 @@ def test_splitter_on_populated_openapi_spec():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    base_yaml, parts = splitter.split(spec)
 
     assert len(parts) == 3
     assert sum(isinstance(p, APIPath) for p in parts) == 1
@@ -53,7 +56,7 @@ def test_splitter_empty_paths():
     spec = {"paths": {}}
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     assert len(parts) == 0
 
@@ -65,7 +68,7 @@ def test_splitter_no_paths_key():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     assert len(parts) == 0
 
@@ -74,7 +77,7 @@ def test_splitter_path_with_no_verbs():
     spec = {"paths": {"/api/v1/items": {}}}
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     assert len(parts) == 1
     assert isinstance(parts[0], APIPath)
@@ -85,7 +88,7 @@ def test_splitter_path_normalization():
     spec = {"paths": {"/api/v1/widgets/": {"get": {"responses": {"200": {"description": "ok"}}}}}}
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     assert len(parts) == 2
     assert isinstance(parts[0], APIPath)
@@ -106,7 +109,7 @@ def test_splitter_path_with_parameters():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     assert len(parts) == 3
     assert parts[0].path == "/users/{user_id}"
@@ -125,7 +128,7 @@ def test_splitter_multiple_paths():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     assert len(parts) == 4
     path_objects = [p for p in parts if isinstance(p, APIPath)]
@@ -156,7 +159,7 @@ def test_splitter_yaml_output_correctness():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(original_spec)
+    _, parts = splitter.split(original_spec)
 
     assert len(parts) == 3
 
@@ -166,52 +169,39 @@ def test_splitter_yaml_output_correctness():
         p for p in parts if isinstance(p, APIVerb) and p.path == "/data" and p.verb == "POST"
     )
 
-    expected_path_yaml = """swagger: '2.0'
-info:
-  title: Test API
-  version: '1.0'
-paths:
-  /api/data:
-    get:
-      summary: Get data
-      responses:
-        '200':
-          description: Success
-    post:
-      summary: Create data
-      responses:
-        '201':
-          description: Created
-"""
-    assert api_path_obj.yaml.strip() == expected_path_yaml.strip()
+    expected_path_yaml = {
+        "/api/data": {
+            "get": {
+                "summary": "Get data",
+                "responses": {"200": {"description": "Success"}},
+            },
+            "post": {
+                "summary": "Create data",
+                "responses": {"201": {"description": "Created"}},
+            },
+        }
+    }
+    assert yaml.safe_load(api_path_obj.yaml) == expected_path_yaml
 
-    expected_get_verb_yaml = """swagger: '2.0'
-info:
-  title: Test API
-  version: '1.0'
-paths:
-  /api/data:
-    get:
-      summary: Get data
-      responses:
-        '200':
-          description: Success
-"""
-    assert get_verb_obj.yaml.strip() == expected_get_verb_yaml.strip()
+    expected_get_verb_yaml = {
+        "/api/data": {
+            "get": {
+                "summary": "Get data",
+                "responses": {"200": {"description": "Success"}},
+            }
+        }
+    }
+    assert yaml.safe_load(get_verb_obj.yaml) == expected_get_verb_yaml
 
-    expected_post_verb_yaml = """swagger: '2.0'
-info:
-  title: Test API
-  version: '1.0'
-paths:
-  /api/data:
-    post:
-      summary: Create data
-      responses:
-        '201':
-          description: Created
-"""
-    assert post_verb_obj.yaml.strip() == expected_post_verb_yaml.strip()
+    expected_post_verb_yaml = {
+        "/api/data": {
+            "post": {
+                "summary": "Create data",
+                "responses": {"201": {"description": "Created"}},
+            }
+        }
+    }
+    assert yaml.safe_load(post_verb_obj.yaml) == expected_post_verb_yaml
 
 
 def test_splitter_verb_root_path():
@@ -225,7 +215,7 @@ def test_splitter_verb_root_path():
     }
 
     splitter = APIDefinitionSplitter()
-    parts = splitter.split(spec)
+    _, parts = splitter.split(spec)
 
     verb_objects = [p for p in parts if isinstance(p, APIVerb)]
 
