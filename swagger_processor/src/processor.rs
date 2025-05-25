@@ -1,18 +1,18 @@
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-use pyo3::exceptions::PyException;
-use std::collections::HashMap;
-use std::fs;
-use std::time::Instant;
+use rayon::prelude::*;
 use reqwest;
 use serde_json::{self, Value};
 use serde_yaml;
+use std::collections::HashMap;
+use std::fs;
+use std::time::Instant;
 use tokio;
-use rayon::prelude::*;
 
-use crate::types::{APIDef, APIPath, APIVerb, PathGroup};
 use crate::logger::ThreadSafeLogger;
-use crate::utils::{normalize_path, get_root_path};
+use crate::types::{APIDef, APIPath, APIVerb, PathGroup};
+use crate::utils::{get_root_path, normalize_path};
 
 #[pyclass]
 pub struct APIDefinitionProcessor {
@@ -24,7 +24,7 @@ impl APIDefinitionProcessor {
     #[new]
     fn new(logger: Option<Py<PyAny>>) -> Self {
         APIDefinitionProcessor {
-            logger: logger.map(ThreadSafeLogger::new)
+            logger: logger.map(ThreadSafeLogger::new),
         }
     }
 
@@ -35,7 +35,11 @@ impl APIDefinitionProcessor {
     ///
     /// Returns:
     ///     list: List of dictionaries containing the processed API definitions.
-    fn process_api_definition(&self, py: Python, api_definition_path: &str) -> PyResult<Py<PyList>> {
+    fn process_api_definition(
+        &self,
+        py: Python,
+        api_definition_path: &str,
+    ) -> PyResult<Py<PyList>> {
         if let Some(ref logger) = self.logger {
             logger.info(py, "Starting API processing");
         }
@@ -73,7 +77,10 @@ impl APIDefinitionProcessor {
         if let Some(ref logger) = self.logger {
             logger.info(py, "Successfully processed API definition.");
             let elapsed = start_time.elapsed();
-            let time_msg = format!("Time taken to process API definition: {:.2} seconds", elapsed.as_secs_f64());
+            let time_msg = format!(
+                "Time taken to process API definition: {:.2} seconds",
+                elapsed.as_secs_f64()
+            );
             logger.info(py, &time_msg);
         }
 
@@ -89,11 +96,11 @@ impl APIDefinitionProcessor {
             logger.debug(py, &debug_msg);
         }
 
-        if api_definition.starts_with("http") &&
-            (api_definition.ends_with(".json") ||
-                api_definition.ends_with(".yaml") ||
-                api_definition.ends_with(".yml")) {
-
+        if api_definition.starts_with("http")
+            && (api_definition.ends_with(".json")
+                || api_definition.ends_with(".yaml")
+                || api_definition.ends_with(".yml"))
+        {
             if let Some(ref logger) = self.logger {
                 let debug_msg = format!("Loading API definition from URL: {}", api_definition);
                 logger.debug(py, &debug_msg);
@@ -113,20 +120,19 @@ impl APIDefinitionProcessor {
             // Use a client with connection pooling and timeout
             let client = match reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5)) // Reduced timeout for tests
-                .build() {
-                    Ok(client) => client,
-                    Err(e) => {
-                        let error_msg = format!("Failed to create HTTP client: {}", e);
-                        if let Some(ref logger) = self.logger {
-                            logger.error(py, &error_msg);
-                        }
-                        return Err(PyException::new_err(error_msg));
+                .build()
+            {
+                Ok(client) => client,
+                Err(e) => {
+                    let error_msg = format!("Failed to create HTTP client: {}", e);
+                    if let Some(ref logger) = self.logger {
+                        logger.error(py, &error_msg);
                     }
-                };
+                    return Err(PyException::new_err(error_msg));
+                }
+            };
 
-            let response = match rt.block_on(async {
-                client.get(api_definition).send().await
-            }) {
+            let response = match rt.block_on(async { client.get(api_definition).send().await }) {
                 Ok(response) => response,
                 Err(e) => {
                     let error_msg = format!("Error fetching API definition: {}", e);
@@ -145,9 +151,7 @@ impl APIDefinitionProcessor {
                 return Err(PyException::new_err(error_msg));
             }
 
-            let text = match rt.block_on(async {
-                response.text().await
-            }) {
+            let text = match rt.block_on(async { response.text().await }) {
                 Ok(text) => text,
                 Err(e) => {
                     let error_msg = format!("Error reading response text: {}", e);
@@ -225,7 +229,7 @@ impl APIDefinitionProcessor {
                 // No clear extension, try both formats but be strict about errors
                 let yaml_result = serde_yaml::from_str::<Value>(&file_content);
                 let json_result = serde_json::from_str::<Value>(&file_content);
-                
+
                 match (yaml_result, json_result) {
                     (Ok(yaml_value), Ok(json_value)) => {
                         // Both parsed successfully, prefer JSON if they're different
@@ -242,7 +246,10 @@ impl APIDefinitionProcessor {
                     }
                     (Err(yaml_err), Err(json_err)) => {
                         // Neither parsed successfully
-                        let error_msg = format!("Error parsing file as JSON or YAML: YAML error: {}, JSON error: {}", yaml_err, json_err);
+                        let error_msg = format!(
+                            "Error parsing file as JSON or YAML: YAML error: {}, JSON error: {}",
+                            yaml_err, json_err
+                        );
                         if let Some(ref logger) = self.logger {
                             logger.error(py, &error_msg);
                         }
@@ -253,7 +260,11 @@ impl APIDefinitionProcessor {
         }
     }
 
-    fn split_definition_parallel(&self, py: Python, api_definition: &Value) -> PyResult<Vec<APIDef>> {
+    fn split_definition_parallel(
+        &self,
+        py: Python,
+        api_definition: &Value,
+    ) -> PyResult<Vec<APIDef>> {
         let start_time = Instant::now();
         if let Some(ref logger) = self.logger {
             logger.info(py, "Splitting API definition into components...");
@@ -283,9 +294,7 @@ impl APIDefinitionProcessor {
         // Process groups in parallel
         let results: Result<Vec<_>, PyErr> = path_groups
             .into_par_iter()
-            .map(|(_, path_group)| {
-                self.process_path_group(api_definition, path_group)
-            })
+            .map(|(_, path_group)| self.process_path_group(api_definition, path_group))
             .collect();
 
         let api_definition_list: Vec<APIDef> = results?.into_iter().flatten().collect();
@@ -293,14 +302,21 @@ impl APIDefinitionProcessor {
         if let Some(ref logger) = self.logger {
             logger.info(py, "Successfully split API definition.");
             let elapsed = start_time.elapsed();
-            let time_msg = format!("Time taken to split API definition: {:.2} seconds", elapsed.as_secs_f64());
+            let time_msg = format!(
+                "Time taken to split API definition: {:.2} seconds",
+                elapsed.as_secs_f64()
+            );
             logger.info(py, &time_msg);
         }
 
         Ok(api_definition_list)
     }
 
-    fn process_path_group(&self, api_definition: &Value, path_group: PathGroup) -> PyResult<Vec<APIDef>> {
+    fn process_path_group(
+        &self,
+        api_definition: &Value,
+        path_group: PathGroup,
+    ) -> PyResult<Vec<APIDef>> {
         let normalized_path = &path_group.normalized_path;
         let mut all_definitions = Vec::new();
 
@@ -308,7 +324,8 @@ impl APIDefinitionProcessor {
         let merged_path_data = self.merge_path_data(&path_group)?;
 
         // Create the merged path definition with minimal copying
-        let path_yaml = self.create_path_yaml(api_definition, normalized_path, &merged_path_data)?;
+        let path_yaml =
+            self.create_path_yaml(api_definition, normalized_path, &merged_path_data)?;
 
         all_definitions.push(APIDef::Path(APIPath {
             path: normalized_path.clone(),
@@ -318,7 +335,8 @@ impl APIDefinitionProcessor {
         // Process each verb in the merged path data
         if let Some(merged_obj) = merged_path_data.as_object() {
             for (verb, verb_data) in merged_obj {
-                let verb_yaml = self.create_verb_yaml(api_definition, normalized_path, verb, verb_data)?;
+                let verb_yaml =
+                    self.create_verb_yaml(api_definition, normalized_path, verb, verb_data)?;
 
                 all_definitions.push(APIDef::Verb(APIVerb {
                     verb: verb.to_uppercase(),
@@ -332,7 +350,12 @@ impl APIDefinitionProcessor {
         Ok(all_definitions)
     }
 
-    fn create_path_yaml(&self, api_definition: &Value, path: &str, path_data: &Value) -> PyResult<String> {
+    fn create_path_yaml(
+        &self,
+        api_definition: &Value,
+        path: &str,
+        path_data: &Value,
+    ) -> PyResult<String> {
         let mut yaml_value = Value::Object(serde_json::Map::new());
 
         // Copy non-paths data from original
@@ -353,12 +376,17 @@ impl APIDefinitionProcessor {
             yaml_obj.insert("paths".to_string(), Value::Object(paths_obj));
         }
 
-        serde_yaml::to_string(&yaml_value).map_err(|e| {
-            PyException::new_err(format!("Error converting to YAML: {}", e))
-        })
+        serde_yaml::to_string(&yaml_value)
+            .map_err(|e| PyException::new_err(format!("Error converting to YAML: {}", e)))
     }
 
-    fn create_verb_yaml(&self, api_definition: &Value, path: &str, verb: &str, verb_data: &Value) -> PyResult<String> {
+    fn create_verb_yaml(
+        &self,
+        api_definition: &Value,
+        path: &str,
+        verb: &str,
+        verb_data: &Value,
+    ) -> PyResult<String> {
         let mut yaml_value = Value::Object(serde_json::Map::new());
 
         // Copy non-paths data from original
@@ -383,9 +411,8 @@ impl APIDefinitionProcessor {
             yaml_obj.insert("paths".to_string(), Value::Object(paths_obj));
         }
 
-        serde_yaml::to_string(&yaml_value).map_err(|e| {
-            PyException::new_err(format!("Error converting to YAML: {}", e))
-        })
+        serde_yaml::to_string(&yaml_value)
+            .map_err(|e| PyException::new_err(format!("Error converting to YAML: {}", e)))
     }
 
     // Helper method to merge multiple path data objects
@@ -411,7 +438,11 @@ impl APIDefinitionProcessor {
     }
 
     // Simplified merge function since paths are properly grouped in split phase
-    fn merge_definitions_parallel(&self, py: Python, api_definition_list: Vec<APIDef>) -> PyResult<Vec<APIDef>> {
+    fn merge_definitions_parallel(
+        &self,
+        py: Python,
+        api_definition_list: Vec<APIDef>,
+    ) -> PyResult<Vec<APIDef>> {
         let start_time = Instant::now();
 
         // Separate paths and verbs
@@ -454,7 +485,10 @@ impl APIDefinitionProcessor {
             logger.info(py, &count_msg);
 
             let elapsed = start_time.elapsed();
-            let time_msg = format!("Time taken to merge API definitions: {:.2} seconds", elapsed.as_secs_f64());
+            let time_msg = format!(
+                "Time taken to merge API definitions: {:.2} seconds",
+                elapsed.as_secs_f64()
+            );
             logger.info(py, &time_msg);
         }
 
@@ -467,9 +501,8 @@ impl APIDefinitionProcessor {
 
         for path in paths_to_merge {
             if let APIDef::Path(path_data) = path {
-                let path_yaml: Value = serde_yaml::from_str(&path_data.yaml).map_err(|e| {
-                    PyException::new_err(format!("Error parsing YAML: {}", e))
-                })?;
+                let path_yaml: Value = serde_yaml::from_str(&path_data.yaml)
+                    .map_err(|e| PyException::new_err(format!("Error parsing YAML: {}", e)))?;
 
                 match merged_yaml {
                     None => merged_yaml = Some(path_yaml),
@@ -477,10 +510,12 @@ impl APIDefinitionProcessor {
                         // Merge paths efficiently
                         if let (Some(path_paths), Some(merged_paths)) = (
                             path_yaml.get("paths").and_then(|p| p.as_object()),
-                            merged.get_mut("paths").and_then(|p| p.as_object_mut())
+                            merged.get_mut("paths").and_then(|p| p.as_object_mut()),
                         ) {
                             for (path_key, path_data) in path_paths {
-                                merged_paths.entry(path_key.clone()).or_insert_with(|| path_data.clone());
+                                merged_paths
+                                    .entry(path_key.clone())
+                                    .or_insert_with(|| path_data.clone());
                             }
                         }
                     }
@@ -489,9 +524,8 @@ impl APIDefinitionProcessor {
         }
 
         let final_yaml = merged_yaml.unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        let merged_yaml_str = serde_yaml::to_string(&final_yaml).map_err(|e| {
-            PyException::new_err(format!("Error converting to YAML: {}", e))
-        })?;
+        let merged_yaml_str = serde_yaml::to_string(&final_yaml)
+            .map_err(|e| PyException::new_err(format!("Error converting to YAML: {}", e)))?;
 
         Ok(APIDef::Path(APIPath {
             path: base_path,
@@ -503,11 +537,10 @@ impl APIDefinitionProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
     use serde_json::json;
-    use tempfile::NamedTempFile;
     use std::io::Write;
-    use std::time::Duration;
+    use std::sync::{Arc, Mutex};
+    use tempfile::NamedTempFile;
 
     // Mock logger for testing
     #[pyclass]
@@ -525,15 +558,24 @@ mod tests {
         }
 
         fn info(&self, message: &str) {
-            self.logs.lock().unwrap().push(("info".to_string(), message.to_string()));
+            self.logs
+                .lock()
+                .unwrap()
+                .push(("info".to_string(), message.to_string()));
         }
 
         fn debug(&self, message: &str) {
-            self.logs.lock().unwrap().push(("debug".to_string(), message.to_string()));
+            self.logs
+                .lock()
+                .unwrap()
+                .push(("debug".to_string(), message.to_string()));
         }
 
         fn error(&self, message: &str) {
-            self.logs.lock().unwrap().push(("error".to_string(), message.to_string()));
+            self.logs
+                .lock()
+                .unwrap()
+                .push(("error".to_string(), message.to_string()));
         }
     }
 
@@ -680,8 +722,14 @@ info:
             assert!(result.is_ok());
             let definitions = result.unwrap();
             assert!(!definitions.is_empty());
-            let paths: Vec<_> = definitions.iter().filter(|d| matches!(d, APIDef::Path(_))).collect();
-            let verbs: Vec<_> = definitions.iter().filter(|d| matches!(d, APIDef::Verb(_))).collect();
+            let paths: Vec<_> = definitions
+                .iter()
+                .filter(|d| matches!(d, APIDef::Path(_)))
+                .collect();
+            let verbs: Vec<_> = definitions
+                .iter()
+                .filter(|d| matches!(d, APIDef::Verb(_)))
+                .collect();
             assert!(!paths.is_empty());
             assert!(!verbs.is_empty());
         });
@@ -695,10 +743,13 @@ info:
             let api_def = create_sample_api_definition();
 
             let mut path_group = PathGroup::new("/users".to_string());
-            path_group.add_path("/api/v1/users".to_string(), json!({
-                "get": {"summary": "Get users"},
-                "post": {"summary": "Create user"}
-            }));
+            path_group.add_path(
+                "/api/v1/users".to_string(),
+                json!({
+                    "get": {"summary": "Get users"},
+                    "post": {"summary": "Create user"}
+                }),
+            );
 
             let result = processor.process_path_group(&api_def, path_group);
             assert!(result.is_ok());
@@ -826,7 +877,8 @@ info:
                 yaml: serde_yaml::to_string(&json!({
                     "openapi": "3.0.0",
                     "paths": {"/test": {"get": {"summary": "Test"}}}
-                })).unwrap(),
+                }))
+                .unwrap(),
             });
 
             let result = processor.merge_path_group("/test".to_string(), vec![path_def]);
@@ -849,7 +901,8 @@ info:
             let processor = APIDefinitionProcessor::new(Some(mock_logger.into()));
 
             let mut temp_file = NamedTempFile::new().unwrap();
-            let api_content = serde_json::to_string_pretty(&create_sample_api_definition()).unwrap();
+            let api_content =
+                serde_json::to_string_pretty(&create_sample_api_definition()).unwrap();
             temp_file.write_all(api_content.as_bytes()).unwrap();
 
             let result = processor.process_api_definition(py, temp_file.path().to_str().unwrap());
@@ -870,7 +923,8 @@ info:
             let processor = APIDefinitionProcessor::new(Some(mock_logger.into()));
 
             let mut temp_file = NamedTempFile::new().unwrap();
-            let api_content = serde_json::to_string_pretty(&create_sample_api_definition()).unwrap();
+            let api_content =
+                serde_json::to_string_pretty(&create_sample_api_definition()).unwrap();
             temp_file.write_all(api_content.as_bytes()).unwrap();
 
             let result = processor.process_api_definition(py, temp_file.path().to_str().unwrap());
@@ -879,7 +933,8 @@ info:
             let logged_messages = logs.lock().unwrap();
             assert!(!logged_messages.is_empty());
 
-            let info_messages: Vec<_> = logged_messages.iter()
+            let info_messages: Vec<_> = logged_messages
+                .iter()
                 .filter(|(level, _)| level == "info")
                 .collect();
             assert!(!info_messages.is_empty());
@@ -915,7 +970,7 @@ info:
                     json!({
                         "get": {"summary": format!("Get resource {}", i)},
                         "post": {"summary": format!("Create resource {}", i)}
-                    })
+                    }),
                 );
             }
 
@@ -1052,7 +1107,8 @@ info:
             let definitions = result.unwrap();
 
             // All should normalize to /users
-            let paths: Vec<_> = definitions.iter()
+            let paths: Vec<_> = definitions
+                .iter()
                 .filter_map(|d| match d {
                     APIDef::Path(path) => Some(path.path.as_str()),
                     APIDef::Verb(verb) => Some(verb.path.as_str()),
@@ -1068,24 +1124,26 @@ info:
 
     #[test]
     fn test_concurrent_access_safety() {
-        use std::thread;
         use std::sync::Arc;
+        use std::thread;
         setup_test_env();
         let processor = Arc::new(APIDefinitionProcessor::new(None));
         let api_def = Arc::new(create_sample_api_definition());
 
-        let handles: Vec<_> = (0..10).map(|_| {
-            let processor_clone = processor.clone();
-            let api_def_clone = api_def.clone();
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                let processor_clone = processor.clone();
+                let api_def_clone = api_def.clone();
 
-            thread::spawn(move || {
-                Python::with_gil(|py| {
-                    let result = processor_clone.split_definition_parallel(py, &api_def_clone);
-                    assert!(result.is_ok());
-                    !result.unwrap().is_empty()
+                thread::spawn(move || {
+                    Python::with_gil(|py| {
+                        let result = processor_clone.split_definition_parallel(py, &api_def_clone);
+                        assert!(result.is_ok());
+                        !result.unwrap().is_empty()
+                    })
                 })
             })
-        }).collect();
+            .collect();
 
         for handle in handles {
             assert!(handle.join().unwrap());
@@ -1143,7 +1201,8 @@ info:
 
             // Create a mock HTTP server for testing
             let mut server = mockito::Server::new();
-            let mock = server.mock("GET", "/api.json")
+            let mock = server
+                .mock("GET", "/api.json")
                 .with_status(200)
                 .with_header("content-type", "application/json")
                 .with_body(r#"{"openapi": "3.0.0", "info": {"title": "Test API"}}"#)
@@ -1162,7 +1221,8 @@ info:
             let processor = APIDefinitionProcessor::new(None);
 
             // Test with a URL that doesn't exist to trigger timeout/error
-            let result = processor.load_definition(py, "http://invalid-url-12345.nonexistent/slow.json");
+            let result =
+                processor.load_definition(py, "http://invalid-url-12345.nonexistent/slow.json");
             assert!(result.is_err());
             let error = result.unwrap_err();
             let error_msg = error.to_string();
@@ -1176,7 +1236,8 @@ info:
         Python::with_gil(|py| {
             let processor = APIDefinitionProcessor::new(None);
 
-            let result = processor.load_definition(py, "http://invalid-url-that-does-not-exist.com/api.json");
+            let result = processor
+                .load_definition(py, "http://invalid-url-that-does-not-exist.com/api.json");
             assert!(result.is_err());
         });
     }
@@ -1191,7 +1252,7 @@ info:
             temp_file.write_all(b"unsupported format").unwrap();
 
             let result = processor.load_definition(py, temp_file.path().to_str().unwrap());
-            
+
             assert!(result.is_err());
             let error = result.unwrap_err();
             let error_msg = error.to_string();
@@ -1236,7 +1297,8 @@ info:
             assert!(!definitions.is_empty());
 
             // Verify parameter handling
-            let verb_defs: Vec<_> = definitions.iter()
+            let verb_defs: Vec<_> = definitions
+                .iter()
                 .filter_map(|d| match d {
                     APIDef::Verb(verb) => Some(verb),
                     _ => None,
@@ -1284,7 +1346,8 @@ info:
             assert!(!definitions.is_empty());
 
             // Verify security scheme is preserved
-            let path_defs: Vec<_> = definitions.iter()
+            let path_defs: Vec<_> = definitions
+                .iter()
                 .filter_map(|d| match d {
                     APIDef::Path(path) => Some(path),
                     _ => None,
@@ -1346,7 +1409,8 @@ info:
             assert!(!definitions.is_empty());
 
             // Verify references are preserved
-            let verb_defs: Vec<_> = definitions.iter()
+            let verb_defs: Vec<_> = definitions
+                .iter()
                 .filter_map(|d| match d {
                     APIDef::Verb(verb) => Some(verb),
                     _ => None,
@@ -1378,7 +1442,7 @@ info:
                             "name": {"type": "string"},
                             "description": {"type": "string"}
                         }
-                    })
+                    }),
                 );
             }
 

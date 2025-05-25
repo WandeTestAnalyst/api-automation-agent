@@ -100,7 +100,10 @@ mod tests {
 
         #[test]
         fn test_complex_path() {
-            assert_eq!(normalize_path("/api/v1/users/123/posts"), "/users/123/posts");
+            assert_eq!(
+                normalize_path("/api/v1/users/123/posts"),
+                "/users/123/posts"
+            );
         }
 
         #[test]
@@ -252,7 +255,7 @@ mod tests {
         fn test_normalize_then_get_root() {
             let normalized = normalize_path("/api/v1/users/123/posts");
             assert_eq!(normalized, "/users/123/posts");
-            
+
             let root = get_root_path(&normalized);
             assert_eq!(root, "/users");
         }
@@ -269,8 +272,12 @@ mod tests {
 
             for (input, expected_normalized, expected_root) in test_cases {
                 let normalized = normalize_path(input);
-                assert_eq!(normalized, expected_normalized, "Failed normalize for: {}", input);
-                
+                assert_eq!(
+                    normalized, expected_normalized,
+                    "Failed normalize for: {}",
+                    input
+                );
+
                 let root = get_root_path(&normalized);
                 assert_eq!(root, expected_root, "Failed get_root for: {}", input);
             }
@@ -280,11 +287,11 @@ mod tests {
         fn test_edge_cases_combination() {
             // Test that both functions handle edge cases consistently
             let edge_cases = vec!["", "/", "///", "/api", "/v1", "/api/v1"];
-            
+
             for case in edge_cases {
                 let normalized = normalize_path(case);
                 let root = get_root_path(&normalized);
-                
+
                 // Both should return "/" for these edge cases
                 assert_eq!(normalized, "/", "Normalize failed for: {}", case);
                 assert_eq!(root, "/", "Get root failed for: {}", case);
@@ -296,7 +303,7 @@ mod tests {
             let long_path = format!("/api/v1/{}", "segment/".repeat(100));
             let normalized = normalize_path(&long_path);
             let root = get_root_path(&normalized);
-            
+
             assert!(normalized.starts_with("/segment"));
             assert_eq!(root, "/segment");
         }

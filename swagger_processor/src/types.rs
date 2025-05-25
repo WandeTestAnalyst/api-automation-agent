@@ -84,7 +84,7 @@ mod tests {
             yaml: "test".to_string(),
         };
         let api_def = APIDef::Path(path.clone());
-        
+
         match api_def {
             APIDef::Path(p) => assert_eq!(p, path),
             _ => panic!("Expected Path variant"),
@@ -100,7 +100,7 @@ mod tests {
             yaml: "test".to_string(),
         };
         let api_def = APIDef::Verb(verb.clone());
-        
+
         match api_def {
             APIDef::Verb(v) => assert_eq!(v, verb),
             _ => panic!("Expected Verb variant"),
@@ -119,9 +119,9 @@ mod tests {
     fn test_path_group_add_path() {
         let mut group = PathGroup::new("/users".to_string());
         let path_data = json!({"get": {"summary": "Get users"}});
-        
+
         group.add_path("/api/v1/users".to_string(), path_data.clone());
-        
+
         assert_eq!(group.len(), 1);
         assert_eq!(group.path_entries[0].0, "/api/v1/users");
         assert_eq!(group.path_entries[0].1, path_data);
@@ -130,10 +130,10 @@ mod tests {
     #[test]
     fn test_path_group_multiple_paths() {
         let mut group = PathGroup::new("/users".to_string());
-        
+
         group.add_path("/api/v1/users".to_string(), json!({"get": {}}));
         group.add_path("/api/v2/users".to_string(), json!({"post": {}}));
-        
+
         assert_eq!(group.len(), 2);
         assert_eq!(group.path_entries[0].0, "/api/v1/users");
         assert_eq!(group.path_entries[1].0, "/api/v2/users");
@@ -152,7 +152,7 @@ mod tests {
             yaml: "yaml content".to_string(),
         };
         let cloned = original.clone();
-        
+
         assert_eq!(original, cloned);
         assert_eq!(original.path, cloned.path);
         assert_eq!(original.yaml, cloned.yaml);
@@ -167,7 +167,7 @@ mod tests {
             yaml: "yaml content".to_string(),
         };
         let cloned = original.clone();
-        
+
         assert_eq!(original, cloned);
         assert_eq!(original.verb, cloned.verb);
     }
@@ -180,7 +180,7 @@ mod tests {
         };
         let original = APIDef::Path(path);
         let cloned = original.clone();
-        
+
         assert_eq!(original, cloned);
     }
 }
