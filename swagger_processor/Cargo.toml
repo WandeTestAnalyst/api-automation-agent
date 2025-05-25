@@ -20,3 +20,11 @@ rayon = "1.7"
 [dev-dependencies]
 tempfile = "3.20.0"
 mockito = "1.2"
+
+[profile.release]
+lto = "fat"              # Link-time optimization
+codegen-units = 1        # Single codegen unit for better optimization
+panic = "abort"          # Smaller binary, faster runtime
+opt-level = 3            # Maximum optimization
+debug = false            # No debug info
+overflow-checks = false  # Skip overflow checks
