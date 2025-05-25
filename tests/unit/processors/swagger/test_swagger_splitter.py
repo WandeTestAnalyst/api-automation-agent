@@ -52,9 +52,10 @@ def test_splitter_on_populated_openapi_spec():
     assert sum(isinstance(p, APIVerb) for p in parts) == 2
 
     assert "/api/v1/users" not in base_yaml
-    assert base_yaml["openapi"] == "3.0.0"
-    assert base_yaml["info"]["title"] == "Title"
-    assert base_yaml["servers"] == [{"url": "http://localhost:3000", "description": "Local server"}]
+    base_yaml_dict = yaml.safe_load(base_yaml)
+    assert base_yaml_dict["openapi"] == "3.0.0"
+    assert base_yaml_dict["info"]["title"] == "Title"
+    assert base_yaml_dict["servers"] == [{"url": "http://localhost:3000", "description": "Local server"}]
 
 
 def test_splitter_empty_paths():
