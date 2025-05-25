@@ -1292,6 +1292,7 @@ name = "swagger_processor"
 version = "0.1.0"
 dependencies = [
  "mockito",
+ "once_cell",
  "pyo3",
  "rayon",
  "reqwest",
