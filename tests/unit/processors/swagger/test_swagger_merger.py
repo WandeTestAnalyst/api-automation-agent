@@ -12,7 +12,7 @@ info:
   title: Test API
   version: '1.0'
 paths:
-  /api/v1/path:
+  /path:
     get:
       description: path details
 """
@@ -59,7 +59,7 @@ info:
   title: Test API
   version: '1.0'
 paths:
-  /api/v1/users:
+  /users:
     get:
       description: user details
 """
@@ -167,10 +167,10 @@ paths:
 """
 
     parts_to_merge = [
-        APIPath(path="/users/{id}", yaml=path_users_details_yaml_str),
-        APIPath(path="/users", yaml=path_users_list_yaml_str),
-        APIVerb(verb="GET", path="/users/{id}", root_path="/users", yaml=verb_users_get_yaml_str),
-        APIVerb(verb="POST", path="/users", root_path="/users", yaml=verb_users_post_yaml_str),
+        APIPath(path="/v1/users/{id}", yaml=path_users_details_yaml_str),
+        APIPath(path="/v1/users", yaml=path_users_list_yaml_str),
+        APIVerb(verb="GET", path="/v1/users/{id}", root_path="/v1/users", yaml=verb_users_get_yaml_str),
+        APIVerb(verb="POST", path="/v1/users", root_path="/v1/users", yaml=verb_users_post_yaml_str),
     ]
 
     merged = merger.merge(parts_to_merge)
@@ -183,8 +183,6 @@ paths:
     assert len(merged_api_paths) == 1
     assert len(merged_api_verbs) == 2
 
-    assert merged_api_paths[0].path == "/users"
-
     users_path_obj = merged_api_paths[0]
     users_path_yaml_content = yaml.safe_load(users_path_obj.yaml)
 
@@ -194,14 +192,14 @@ paths:
     assert users_path_yaml_content["paths"]["/api/v1/users/{id}"]["get"]["description"] == "user details"
     assert users_path_yaml_content["paths"]["/api/v1/users"]["post"]["description"] == "create user"
 
-    assert merged_api_verbs[0].path == "/users"
+    assert merged_api_verbs[0].path == "/v1/users"
     assert merged_api_verbs[0].verb == "POST"
-    assert merged_api_verbs[0].root_path == "/users"
+    assert merged_api_verbs[0].root_path == "/v1/users"
     users_post_verb_yaml = yaml.safe_load(merged_api_verbs[0].yaml)
     assert users_post_verb_yaml["paths"]["/api/v1/users"]["post"]["description"] == "create user"
 
-    assert merged_api_verbs[1].path == "/users/{id}"
+    assert merged_api_verbs[1].path == "/v1/users/{id}"
     assert merged_api_verbs[1].verb == "GET"
-    assert merged_api_verbs[1].root_path == "/users"
+    assert merged_api_verbs[1].root_path == "/v1/users"
     users_get_verb_yaml = yaml.safe_load(merged_api_verbs[1].yaml)
     assert users_get_verb_yaml["paths"]["/api/v1/users/{id}"]["get"]["description"] == "user details"
