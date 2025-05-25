@@ -22,14 +22,6 @@ class APIPath(APIBase):
             if parts[start_index] == "api":
                 start_index += 1
 
-        # if start_index < len(parts):
-        #     if (
-        #         parts[start_index].startswith("v")
-        #         and len(parts[start_index]) > 1
-        #         and parts[start_index][1:].isdigit()
-        #     ):
-        #         start_index += 1
-
         if start_index < len(parts):
             return "/" + "/".join(parts[start_index:])
         return "/"
