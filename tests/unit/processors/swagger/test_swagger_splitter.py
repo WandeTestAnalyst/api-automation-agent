@@ -18,12 +18,12 @@ def test_splitter_basic():
     assert len(parts) == 3
     assert sum(isinstance(p, APIPath) for p in parts) == 1
     assert sum(isinstance(p, APIVerb) for p in parts) == 2
-    assert parts[0].path == "/users"
+    assert parts[0].path == "/v1/users"
     assert parts[0].type == "path"
-    assert parts[1].path == "/users"
+    assert parts[1].path == "/v1/users"
     assert parts[1].type == "verb"
     assert parts[1].verb == "GET"
-    assert parts[2].path == "/users"
+    assert parts[2].path == "/v1/users"
     assert parts[2].type == "verb"
     assert parts[2].verb == "POST"
 
@@ -78,7 +78,7 @@ def test_splitter_path_with_no_verbs():
 
     assert len(parts) == 1
     assert isinstance(parts[0], APIPath)
-    assert parts[0].path == "/items"
+    assert parts[0].path == "/v1/items"
 
 
 def test_splitter_path_normalization():
@@ -89,9 +89,9 @@ def test_splitter_path_normalization():
 
     assert len(parts) == 2
     assert isinstance(parts[0], APIPath)
-    assert parts[0].path == "/widgets"
+    assert parts[0].path == "/v1/widgets"
     assert isinstance(parts[1], APIVerb)
-    assert parts[1].path == "/widgets"
+    assert parts[1].path == "/v1/widgets"
     assert parts[1].verb == "GET"
 
 
@@ -109,10 +109,10 @@ def test_splitter_path_with_parameters():
     parts = splitter.split(spec)
 
     assert len(parts) == 3
-    assert parts[0].path == "/users/{user_id}"
-    assert parts[1].path == "/users/{user_id}"
+    assert parts[0].path == "/v1/users/{user_id}"
+    assert parts[1].path == "/v1/users/{user_id}"
     assert parts[1].verb == "GET"
-    assert parts[2].path == "/users/{user_id}"
+    assert parts[2].path == "/v1/users/{user_id}"
     assert parts[2].verb == "PUT"
 
 
@@ -134,12 +134,12 @@ def test_splitter_multiple_paths():
     assert len(path_objects) == 2
     assert len(verb_objects) == 2
 
-    assert path_objects[0].path == "/first"
-    assert verb_objects[0].path == "/first"
+    assert path_objects[0].path == "/v1/first"
+    assert verb_objects[0].path == "/v1/first"
     assert verb_objects[0].verb == "GET"
 
-    assert path_objects[1].path == "/second/path"
-    assert verb_objects[1].path == "/second/path"
+    assert path_objects[1].path == "/v1/second/path"
+    assert verb_objects[1].path == "/v1/second/path"
     assert verb_objects[1].verb == "POST"
 
 
@@ -230,5 +230,5 @@ def test_splitter_verb_root_path():
     verb_objects = [p for p in parts if isinstance(p, APIVerb)]
 
     for verb_obj in verb_objects:
-        assert verb_obj.path == "/items/{item_id}/details"
-        assert verb_obj.root_path == "/items"
+        assert verb_obj.path == "/v1/items/{item_id}/details"
+        assert verb_obj.root_path == "/v1/items"
