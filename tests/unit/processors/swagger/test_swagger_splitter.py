@@ -51,6 +51,11 @@ def test_splitter_on_populated_openapi_spec():
     assert sum(isinstance(p, APIPath) for p in parts) == 1
     assert sum(isinstance(p, APIVerb) for p in parts) == 2
 
+    assert "/api/v1/users" not in base_yaml
+    assert base_yaml["openapi"] == "3.0.0"
+    assert base_yaml["info"]["title"] == "Title"
+    assert base_yaml["servers"] == [{"url": "http://localhost:3000", "description": "Local server"}]
+
 
 def test_splitter_empty_paths():
     spec = {"paths": {}}

@@ -1,5 +1,3 @@
-import yaml  # noqa: F401
-
 from src.processors.swagger import APIDefinitionMerger
 from src.models import APIPath, APIVerb
 import yaml
@@ -8,9 +6,7 @@ import yaml
 def test_merger_merge_two_differente_paths():
     merger = APIDefinitionMerger()
 
-    sample_yaml_str = yaml.dump(
-        {"/api/v1/path": {"get": {"description": "path details"}}}, sort_keys=False
-    )
+    sample_yaml_str = yaml.dump({"/api/v1/path": {"get": {"description": "path details"}}}, sort_keys=False)
 
     parts_to_merge = [
         APIPath(path="/users/{id}", yaml=sample_yaml_str),
@@ -39,7 +35,7 @@ def test_merger_merge_two_differente_paths():
     assert yaml.safe_load(merged_api_verbs[0].yaml) == yaml.safe_load(sample_yaml_str)
     assert merged_api_verbs[0].type == "verb"
 
-    assert merged_api_verbs[1].path == "/users"  # This was originally /users for POST
+    assert merged_api_verbs[1].path == "/users"
     assert merged_api_verbs[1].verb == "POST"
     assert merged_api_verbs[1].root_path == "/users"
     assert yaml.safe_load(merged_api_verbs[1].yaml) == yaml.safe_load(sample_yaml_str)
@@ -49,9 +45,7 @@ def test_merger_merge_two_differente_paths():
 def test_merger_merge_two_equal_paths():
     merger = APIDefinitionMerger()
 
-    sample_yaml_str = yaml.dump(
-        {"/api/v1/users": {"get": {"description": "user details"}}}, sort_keys=False
-    )
+    sample_yaml_str = yaml.dump({"/api/v1/users": {"get": {"description": "user details"}}}, sort_keys=False)
 
     parts_to_merge = [
         APIPath(path="/users", yaml=sample_yaml_str),
@@ -80,9 +74,7 @@ def test_merger_merge_two_equal_paths():
 def test_merger_merge_four_paths_into_two():
     merger = APIDefinitionMerger()
 
-    sample_yaml_str = yaml.dump(
-        {"/api/v1/users": {"get": {"description": "user details"}}}, sort_keys=False
-    )
+    sample_yaml_str = yaml.dump({"/api/v1/users": {"get": {"description": "user details"}}}, sort_keys=False)
 
     parts_to_merge = [
         APIPath(path="/users/{id}", yaml=sample_yaml_str),
