@@ -59,3 +59,292 @@ def test_run_command_with_popen_mock(tmp_path):
 
     assert success is True
     assert output == "line1\nline2"
+
+
+def test_run_command_silently_success(tmp_path):
+    """This test verifies that run_command_silently correctly:
+    - Executes a command successfully
+    - Captures stdout output
+    - Returns the output as a string
+    - Handles empty stderr appropriately
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch("src.services.command_service.subprocess.run") as mock_run:
+        mock_result = MagicMock()
+        mock_result.stdout = "test output"
+        mock_result.stderr = ""
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        output = service.run_command_silently("echo test", cwd=str(tmp_path))
+        mock_run.assert_called_once()
+        assert output == "test output"
+
+
+def test_run_command_silently_with_error(tmp_path):
+    """This test verifies that run_command_silently correctly:
+    - Handles command execution errors
+    - Logs error messages from stderr
+    - Returns empty string on error
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch("src.services.command_service.subprocess.run") as mock_run:
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.stderr = "error message"
+        mock_result.returncode = 1
+        mock_run.return_value = mock_result
+
+        output = service.run_command_silently("invalid_command", cwd=str(tmp_path))
+        mock_run.assert_called_once()
+        assert output == ""
+
+
+def test_run_command_silently_with_env_vars(tmp_path):
+    """This test verifies that run_command_silently correctly:
+    - Handles custom environment variables
+    - Merges them with existing environment variables
+    - Passes them to the subprocess
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    custom_env = {"CUSTOM_VAR": "test_value"}
+
+    with patch("src.services.command_service.subprocess.run") as mock_run:
+        mock_result = MagicMock()
+        mock_result.stdout = "test output"
+        mock_result.stderr = ""
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        service.run_command_silently("echo test", cwd=str(tmp_path), env_vars=custom_env)
+
+        # Verify that the environment variables were passed correctly
+        call_args = mock_run.call_args[1]
+        assert "env" in call_args
+        assert call_args["env"]["CUSTOM_VAR"] == "test_value"
+        # Verify that base environment variables are still present
+        assert "PATH" in call_args["env"]
+
+
+def test_run_command_with_fix_success_first_try(tmp_path):
+    """This test verifies that run_command_with_fix correctly:
+    - Executes a command successfully on first try
+    - Returns success status and output
+    - Does not attempt retries when successful
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    def mock_command_func(files):
+        return True, "success output"
+
+    success, output = service.run_command_with_fix(mock_command_func)
+    assert success is True
+    assert output == "success output"
+
+
+def test_run_command_with_fix_retry_success(tmp_path):
+    """This test verifies that run_command_with_fix correctly:
+    - Retries failed commands up to max_retries
+    - Applies fix function between retries
+    - Returns success when command eventually succeeds
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    attempt_count = 0
+
+    def mock_command_func(files):
+        nonlocal attempt_count
+        attempt_count += 1
+        if attempt_count == 1:
+            return False, "first failure"
+        return True, "success after retry"
+
+    def mock_fix_func(files, message):
+        pass  # Simulate fix attempt
+
+    success, output = service.run_command_with_fix(mock_command_func, fix_func=mock_fix_func, max_retries=3)
+    assert success is True
+    assert output == "success after retry"
+    assert attempt_count == 2
+
+
+def test_run_command_with_fix_max_retries_exceeded(tmp_path):
+    """This test verifies that run_command_with_fix correctly:
+    - Stops after max_retries attempts
+    - Applies fix function between each retry
+    - Returns failure status when max retries exceeded
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    attempt_count = 0
+
+    def mock_command_func(files):
+        nonlocal attempt_count
+        attempt_count += 1
+        return False, f"failure attempt {attempt_count}"
+
+    fix_attempts = []
+
+    def mock_fix_func(files, message):
+        fix_attempts.append(message)
+
+    success, output = service.run_command_with_fix(mock_command_func, fix_func=mock_fix_func, max_retries=2)
+    assert success is False
+    assert output == "failure attempt 3"
+    assert attempt_count == 3
+    assert len(fix_attempts) == 2
+
+
+def test_run_command_with_fix_without_fix_func(tmp_path):
+    """This test verifies that run_command_with_fix correctly:
+    - Handles retries without a fix function
+    - Continues retrying until max_retries
+    - Returns failure status when max retries exceeded
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    attempt_count = 0
+
+    def mock_command_func(files):
+        nonlocal attempt_count
+        attempt_count += 1
+        return False, f"failure attempt {attempt_count}"
+
+    success, output = service.run_command_with_fix(mock_command_func, max_retries=2)
+    assert success is False
+    assert output == "failure attempt 3"
+    assert attempt_count == 3
+
+
+def test_install_dependencies(tmp_path):
+    """This test verifies that install_dependencies correctly:
+    - Executes npm install command
+    - Returns success status and output
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch.object(service, "run_command") as mock_run:
+        mock_run.return_value = (True, "Dependencies installed successfully")
+        success, output = service.install_dependencies()
+
+        mock_run.assert_called_once_with("npm install --loglevel=error")
+        assert success is True
+        assert output == "Dependencies installed successfully"
+
+
+def test_format_files(tmp_path):
+    """This test verifies that format_files correctly:
+    - Executes prettify command
+    - Returns success status and output
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch.object(service, "run_command") as mock_run:
+        mock_run.return_value = (True, "Files formatted successfully")
+        success, output = service.format_files()
+
+        mock_run.assert_called_once_with("npm run prettify")
+        assert success is True
+        assert output == "Files formatted successfully"
+
+
+def test_run_linter(tmp_path):
+    """This test verifies that run_linter correctly:
+    - Executes lint:fix command
+    - Returns success status and output
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch.object(service, "run_command") as mock_run:
+        mock_run.return_value = (True, "Linting completed successfully")
+        success, output = service.run_linter()
+
+        mock_run.assert_called_once_with("npm run lint:fix")
+        assert success is True
+        assert output == "Linting completed successfully"
+
+
+def test_run_typescript_compiler(tmp_path):
+    """This test verifies that run_typescript_compiler correctly:
+    - Executes tsc command with noEmit flag
+    - Returns success status and output
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch.object(service, "run_command") as mock_run:
+        mock_run.return_value = (True, "TypeScript compilation successful")
+        success, output = service.run_typescript_compiler()
+
+        mock_run.assert_called_once_with("npx tsc --noEmit")
+        assert success is True
+        assert output == "TypeScript compilation successful"
+
+
+def test_get_generated_test_files_empty_directory(tmp_path):
+    """This test verifies that get_generated_test_files correctly:
+    - Handles non-existent directory
+    - Returns empty list when no test files are found
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    test_files = service.get_generated_test_files()
+    assert test_files == []
+
+
+def test_get_generated_test_files_with_tests(tmp_path):
+    """This test verifies that get_generated_test_files correctly:
+    - Finds test files in the correct directory
+    - Filters only .spec.ts files
+    - Returns correct file paths
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    test_dir = tmp_path / "src" / "tests"
+    test_dir.mkdir(parents=True)
+    (test_dir / "test1.spec.ts").touch()
+    (test_dir / "test2.spec.ts").touch()
+    (test_dir / "not_a_test.txt").touch()
+
+    test_files = service.get_generated_test_files()
+    assert len(test_files) == 2
+    assert all(file["path"].endswith(".spec.ts") for file in test_files)
+    assert any("test1.spec.ts" in file["path"] for file in test_files)
+    assert any("test2.spec.ts" in file["path"] for file in test_files)
+
+
+def test_run_typescript_compiler_for_files(tmp_path):
+    """This test verifies that run_typescript_compiler_for_files correctly:
+    - Builds correct TypeScript compiler command
+    - Executes command for specific files
+    - Returns success status and output
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    files = [FileSpec(path="src/test1.ts", fileContent=""), FileSpec(path="src/test2.ts", fileContent="")]
+
+    with patch.object(service, "run_command") as mock_run:
+        mock_run.return_value = (True, "TypeScript compilation successful")
+        success, output = service.run_typescript_compiler_for_files(files)
+
+        call_args = mock_run.call_args[0][0]
+        assert "src/test1.ts" in call_args
+        assert "src/test2.ts" in call_args
+        assert success is True
+        assert output == "TypeScript compilation successful"
