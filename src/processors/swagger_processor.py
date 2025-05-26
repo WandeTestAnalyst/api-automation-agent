@@ -43,6 +43,7 @@ class SwaggerProcessor(APIProcessor):
         self.splitter = splitter
         self.merger = merger
         self.api_definition_loader = api_definition_loader or APIDefinitionLoader()
+        self.base_definition: str | None = None
         self.logger = Logger.get_logger(__name__)
 
     def process_api_definition(self, api_definition_path: str) -> APIDefinition:
@@ -58,10 +59,11 @@ class SwaggerProcessor(APIProcessor):
         try:
             self.logger.info("Starting API processing")
             raw_definition = self.api_definition_loader.load(api_definition_path)
-            split_definitions = self.splitter.split(raw_definition)
+            base_definition, split_definitions = self.splitter.split(raw_definition)
             merged_definitions = self.merger.merge(split_definitions)
+            self.base_definition = base_definition
 
-            result = APIDefinition(endpoints=self.config.endpoints)
+            result = APIDefinition(endpoints=self.config.endpoints, base_yaml=base_definition)
             for definition in merged_definitions:
                 if definition.type == "path":
                     result.add_definition(APIPath(path=definition.path, yaml=definition.yaml))
@@ -89,13 +91,12 @@ class SwaggerProcessor(APIProcessor):
     def create_dot_env(self, api_definition: APIDefinition) -> None:
         self.logger.info("\nGenerating .env file...")
 
-        api_definition_str = api_definition.definitions[0].yaml
         try:
-            api_spec = json.loads(api_definition_str)
+            base_api_spec = json.loads(api_definition.base_yaml or "{}")
         except json.JSONDecodeError:
-            api_spec = yaml.safe_load(api_definition_str)
+            base_api_spec = yaml.safe_load(api_definition.base_yaml or "{}")
 
-        base_url = self._extract_base_url(api_spec)
+        base_url = self._extract_base_url(base_api_spec)
 
         if not base_url:
             self.logger.warning("⚠️ Could not extract base URL from API definition")
@@ -169,7 +170,14 @@ class SwaggerProcessor(APIProcessor):
         return result
 
     def get_api_verb_content(self, api_verb: APIVerb) -> str:
-        return api_verb.yaml
+        return self._build_full_definition(api_verb.yaml)
 
     def get_api_path_content(self, api_path: APIPath) -> str:
-        return api_path.yaml
+        return self._build_full_definition(api_path.yaml)
+
+    def _build_full_definition(self, paths_yaml: str) -> str:
+        """Combine base specification with a partial paths YAML"""
+        base_spec = yaml.safe_load(self.base_definition or "{}")
+        paths_spec = yaml.safe_load(paths_yaml or "{}")
+        base_spec["paths"] = paths_spec
+        return yaml.dump(base_spec, sort_keys=False)

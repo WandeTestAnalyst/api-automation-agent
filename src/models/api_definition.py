@@ -14,6 +14,7 @@ class APIDefinition:
     definitions: List[APIDef | RequestData] = field(default_factory=list)
     endpoints: Optional[List[str]] = None
     variables: List[Dict[str, str]] = field(default_factory=list)
+    base_yaml: Optional[str] = None
 
     def add_definition(self, definition: APIDef) -> None:
         """Add a definition to the list"""
@@ -59,4 +60,5 @@ class APIDefinition:
             "definitions": [d.to_json() for d in self.definitions],
             "endpoints": self.endpoints,
             "variables": self.variables,
+            "base_yaml": self.base_yaml,
         }
