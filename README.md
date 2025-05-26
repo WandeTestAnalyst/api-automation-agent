@@ -50,7 +50,7 @@ This project supports both Anthropic and OpenAI language models:
 
 ### Default Model
 
-**Claude 3.7 Sonnet** (claude-3-7-sonnet-latest) is the default and recommended model
+**Claude 4 Sonnet** (claude-sonnet-4-20250514) is the default and recommended model
 
 - Provides superior code generation and understanding
 - Offers the best balance of performance and cost
@@ -60,6 +60,7 @@ This project supports both Anthropic and OpenAI language models:
 
 **Anthropic**
 
+- Claude 4 Sonnet (claude-sonnet-4-20250514)
 - Claude 3.7 Sonnet (claude-3-7-sonnet-latest)
 - Claude 3.5 Sonnet (claude-3-5-sonnet-latest)
 
@@ -217,7 +218,7 @@ python ./main.py https://petstore.swagger.io/v2/swagger.json --endpoints /store
 ```
 
 These are simple and small examples that includes basic CRUD operations and are ideal for testing the agent's capabilities.
-Estimated cost (with claude-3-7-sonnet-latest) to run each example above: US$ ~0.1
+Estimated cost (with claude-sonnet-4-20250514) to run each example above: US$ ~0.3
 
 You can combine endpoints to test larger scenarios.:
 

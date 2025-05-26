@@ -1,5 +1,4 @@
 import copy
-import re
 from typing import Dict, List
 
 import yaml
@@ -42,37 +41,3 @@ class APIDefinitionSplitter:
 
         self.logger.info("Successfully split API definition.")
         return api_definition_list
-
-    @staticmethod
-    def _normalize_path(path: str) -> str:
-        """Normalizes the path by removing api and version prefixes."""
-        parts = [p for p in path.split("/") if p]
-
-        if not parts:
-            return path
-
-        start_index = 0
-
-        if start_index < len(parts):
-            if parts[start_index] == "api":
-                start_index += 1
-
-        if start_index < len(parts):
-            if (
-                parts[start_index].startswith("v")
-                and len(parts[start_index]) > 1
-                and parts[start_index][1:].isdigit()
-            ):
-                start_index += 1
-
-        if start_index < len(parts):
-            return "/" + "/".join(parts[start_index:])
-        return path
-
-    @staticmethod
-    def _get_root_path(path: str) -> str:
-        """Gets the root path from a full path."""
-        match = re.match(r"(/[^/?]+)", path)
-        if match:
-            return match.group(1)
-        return path

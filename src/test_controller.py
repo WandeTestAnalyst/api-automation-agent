@@ -15,12 +15,14 @@ from .visuals.loading_animator import LoadingDotsAnimator
 
 @dataclass
 class TestFileSet:
+    __test__ = False  # Prevent pytest from collecting this class as a test
     runnable: List[str]
     skipped: List[str]
 
 
 @dataclass
 class TestRunMetrics:
+    __test__ = False  # Prevent pytest from collecting this class as a test
     total_tests: int
     passed_tests: int
     review_tests: int
@@ -28,6 +30,8 @@ class TestRunMetrics:
 
 
 class TestController:
+    __test__ = False  # Prevent pytest from collecting this class as a test
+
     def __init__(self, config: Config, command_service: CommandService):
         self.command_service = command_service
         self.config = config

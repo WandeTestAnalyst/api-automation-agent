@@ -1,17 +1,16 @@
-import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any
+from .api_base import APIBase
 
 
 @dataclass
-class APIVerb:
+class APIVerb(APIBase):
     """Represents an API verb (HTTP method) with its metadata"""
 
+    type: str = field(default="verb", init=False)
+
     verb: str
-    path: str
     root_path: str
-    yaml: str
-    type: str = "verb"
 
     def to_json(self) -> Dict[str, Any]:
         """Convert the verb to a JSON-serializable dictionary"""
@@ -22,11 +21,3 @@ class APIVerb:
             "yaml": self.yaml,
             "type": self.type,
         }
-
-    @staticmethod
-    def get_root_path(path: str) -> str:
-        """Gets the root path from a full path."""
-        match = re.match(r"(/[^/?]+)", path)
-        if match:
-            return match.group(1)
-        return path

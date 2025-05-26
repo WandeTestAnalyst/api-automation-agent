@@ -3,6 +3,8 @@ import re
 from typing import Any, Dict, Iterable, List
 from urllib.parse import parse_qsl
 
+from src.models.api_verb import APIVerb
+
 from ...processors.postman.models import RequestData, VerbInfo
 
 
@@ -111,7 +113,7 @@ class PostmanUtils:
                 out.append(
                     VerbInfo(
                         verb=v,
-                        root_path=PostmanUtils.get_root_path(base),
+                        root_path=APIVerb.get_root_path(base),
                         path=base,
                         query_params=qp,
                         body_attributes=body_attrs,
@@ -172,11 +174,6 @@ class PostmanUtils:
             ev = item.get("event")
             return isinstance(ev, list) and any("request" in e for e in ev)
         return False
-
-    @staticmethod
-    def get_root_path(full_path: str) -> str:
-        segs = full_path.strip("/").split("/", 1)
-        return segs[0] if len(segs) > 1 else ""
 
     @staticmethod
     def to_camel_case(s: str) -> str:
