@@ -101,17 +101,17 @@ def main(
         else:
             framework_generator.restore_state(last_namespace)
 
-        api_definitions = framework_generator.process_api_definition()
+        api_definition = framework_generator.process_api_definition()
 
         if config.list_endpoints:
-            EndpointLister.list_endpoints(api_definitions.definitions)
+            EndpointLister.list_endpoints(api_definition.definitions)
             logger.info("\n✅ Endpoint listing completed successfully!")
         else:
             if not config.use_existing_framework:
-                framework_generator.create_env_file(api_definitions)
-                framework_generator.setup_framework(api_definitions)
+                framework_generator.create_env_file(api_definition)
+                framework_generator.setup_framework(api_definition)
 
-            framework_generator.generate(api_definitions, config.generate)
+            framework_generator.generate(api_definition, config.generate)
             test_files = framework_generator.run_final_checks(config.generate)
 
             logger.info("\n✅ Framework generation completed successfully!")
