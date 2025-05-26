@@ -1,5 +1,6 @@
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
+import subprocess
 
 from src.configuration.config import Config
 from src.ai_tools.models.file_spec import FileSpec
@@ -59,6 +60,74 @@ def test_run_command_with_popen_mock(tmp_path):
 
     assert success is True
     assert output == "line1\nline2"
+
+
+def test_run_command_with_no_stdout(tmp_path):
+    """This test verifies that run_command correctly:
+    - Handles case when process.stdout is None
+    - Logs appropriate error message
+    - Returns failure status
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    process_mock = MagicMock()
+    process_mock.stdout = None
+    process_mock.poll.return_value = 1
+    process_mock.returncode = 1
+
+    with patch("src.services.command_service.subprocess.Popen", return_value=process_mock) as mock_popen:
+        with patch.object(service, "_log_message") as mock_log:
+            success, output = service.run_command("dummy")
+            mock_popen.assert_called_once()
+
+            # Verify all log messages in order
+            assert mock_log.call_count == 2
+            mock_log.assert_has_calls(
+                [
+                    call("No output stream available.", is_error=True),
+                    call("\x1b[91mCommand failed.\x1b[0m", is_error=True),
+                ],
+            )
+
+    assert success is False
+    assert output == ""
+
+
+def test_run_command_with_subprocess_error(tmp_path):
+    """This test verifies that run_command correctly:
+    - Handles SubprocessError exceptions
+    - Logs appropriate error message
+    - Returns failure status
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch(
+        "src.services.command_service.subprocess.Popen", side_effect=subprocess.SubprocessError("Test error")
+    ):
+        success, output = service.run_command("dummy")
+
+    assert success is False
+    assert "Test error" in output
+
+
+def test_run_command_with_general_error(tmp_path):
+    """This test verifies that run_command correctly:
+    - Handles general exceptions
+    - Logs appropriate error message
+    - Returns failure status
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch("src.services.command_service.subprocess.Popen", side_effect=Exception("Unexpected error")):
+        with patch.object(service, "_log_message") as mock_log:
+            success, output = service.run_command("dummy")
+            mock_log.assert_called_with("Unexpected error: Unexpected error", is_error=True)
+
+    assert success is False
+    assert output == "Unexpected error"
 
 
 def test_run_command_silently_success(tmp_path):
@@ -130,6 +199,30 @@ def test_run_command_silently_with_env_vars(tmp_path):
         assert call_args["env"]["CUSTOM_VAR"] == "test_value"
         # Verify that base environment variables are still present
         assert "PATH" in call_args["env"]
+
+
+def test_run_command_silently_with_stderr_warning(tmp_path):
+    """This test verifies that run_command_silently correctly:
+    - Handles stderr output on successful command
+    - Logs stderr as debug message
+    - Returns stdout output
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    with patch("src.services.command_service.subprocess.run") as mock_run:
+        mock_result = MagicMock()
+        mock_result.stdout = "test output"
+        mock_result.stderr = "warning message"
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        with patch.object(service.logger, "debug") as mock_debug:
+            output = service.run_command_silently("echo test", cwd=str(tmp_path))
+            mock_run.assert_called_once()
+            mock_debug.assert_called_once()
+            assert "warning message" in mock_debug.call_args[0][0]
+            assert output == "test output"
 
 
 def test_run_command_with_fix_success_first_try(tmp_path):
@@ -224,6 +317,24 @@ def test_run_command_with_fix_without_fix_func(tmp_path):
     assert success is False
     assert output == "failure attempt 3"
     assert attempt_count == 3
+
+
+def test_run_command_with_fix_with_none_files(tmp_path):
+    """This test verifies that run_command_with_fix correctly:
+    - Handles None files parameter
+    - Converts None to empty list
+    - Executes command successfully
+    """
+    config = Config(destination_folder=str(tmp_path))
+    service = CommandService(config, logger=logging.getLogger(__name__))
+
+    def mock_command_func(files):
+        assert files == []  # Verify files is converted to empty list
+        return True, "success output"
+
+    success, output = service.run_command_with_fix(mock_command_func, files=None)
+    assert success is True
+    assert output == "success output"
 
 
 def test_install_dependencies(tmp_path):
