@@ -12,6 +12,14 @@ from src.models.api_verb import APIBase
         ("pets/123", "/pets"),
         ("/pets", "/pets"),
         ("pets", "/pets"),
+        ("/v1/pets", "/v1/pets"),
+        ("/v1/pets/123", "/v1/pets"),
+        ("/v2/pets", "/v2/pets"),
+        ("/v10/pets", "/v10/pets"),
+        ("/v1beta/pets", "/v1beta/pets"),
+        ("/v2alpha/pets", "/v2alpha/pets"),
+        ("/v1", "/v1"),
+        ("/void", "/void"),
         # ("/pets?limit=10", "/pets"), This is not supported, but it's not necessary at this point.
     ],
 )
