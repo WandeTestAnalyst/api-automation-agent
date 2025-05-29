@@ -1,5 +1,5 @@
 import yaml
-from src.processors.swagger import APIComponentFilter
+from src.processors.swagger import APIComponentsFilter
 
 
 def test_filter_on_used_schemas():
@@ -28,13 +28,13 @@ def test_filter_on_used_schemas():
         },
     }
 
-    filter = APIComponentFilter()
-    filtered_yaml = filter.filter(spec)
-
-    assert "components" in filtered_yaml
-    assert "schemas" in filtered_yaml["components"]
-
+    components_filter = APIComponentsFilter()
+    filtered_yaml = components_filter.filter_components(spec)
     filtered_yaml_dict = yaml.safe_load(filtered_yaml)
+
+    assert "components" in filtered_yaml_dict
+    assert "schemas" in filtered_yaml_dict["components"]
+
     assert filtered_yaml_dict["components"]["schemas"]["Item"] == {
         "type": "object",
         "properties": {"id": {"type": "integer"}},
