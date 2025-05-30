@@ -29,7 +29,7 @@ def test_filter_on_used_schemas():
     }
 
     components_filter = APIComponentsFilter()
-    filtered_yaml = components_filter.filter_components(spec)
+    filtered_yaml = components_filter.filter_schemas(spec)
     filtered_yaml_dict = yaml.safe_load(filtered_yaml)
 
     assert "components" in filtered_yaml_dict
@@ -69,7 +69,7 @@ def test_filter_on_unused_schemas():
     }
 
     components_filter = APIComponentsFilter()
-    filtered_yaml = components_filter.filter_components(spec)
+    filtered_yaml = components_filter.filter_schemas(spec)
     filtered_yaml_dict = yaml.safe_load(filtered_yaml)
 
     assert "components" in filtered_yaml_dict
@@ -94,5 +94,5 @@ def test_filter_on_unused_schemas():
 #     assert False, "This test is not implemented yet"
 
 
-# def test_filter_on_no_components():
+# def test_filter_on_duplicated_schemas():
 #     assert False, "This test is not implemented yet"
