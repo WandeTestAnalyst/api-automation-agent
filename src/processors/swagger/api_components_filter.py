@@ -1,7 +1,5 @@
 from typing import Dict, List, Any
 
-import yaml
-
 from ...utils.logger import Logger
 
 
@@ -11,8 +9,9 @@ class APIComponentsFilter:
     def __init__(self):
         self.logger = Logger.get_logger(__name__)
 
-    def filter_schemas(self, api_definition: Dict) -> str:
+    def filter_schemas(self, api_definition: Dict[str, Any]) -> Dict[str, Any]:
         """Filters out unreferenced schemas from the API definition components."""
+        filtered_spec = {}
         used_refs = self.collect_refs(api_definition.get("paths", {}))
         components = api_definition.get("components", {})
         filtered_schemas = self.collect_used_schemas(components.get("schemas", {}), used_refs)
@@ -21,13 +20,17 @@ class APIComponentsFilter:
             "openapi": api_definition["openapi"],
             "info": api_definition["info"],
             "paths": api_definition["paths"],
-            "components": {
-                "schemas": filtered_schemas
-                # TODO: other components
-            },
+            "components": {},
         }
-        print(yaml.dump(filtered_spec, sort_keys=False, indent=2))
-        return yaml.dump(filtered_spec, sort_keys=False)
+
+        # TODO: Create a method to handle this separately.
+        for component_name, component_data in components.items():
+            if component_name != "schemas":
+                filtered_spec["components"][component_name] = component_data
+
+        filtered_spec["components"]["schemas"] = filtered_schemas
+
+        return filtered_spec
 
     def collect_refs(self, node: Any, refs: List[str] = None) -> List[str]:
         """Recursively collects all $ref in the API paths."""
@@ -37,7 +40,6 @@ class APIComponentsFilter:
         if isinstance(node, dict):
             for key, value in node.items():
                 if key == "$ref":
-                    print(f"Found ref: {value}")
                     refs.append(value)
                 else:
                     self.collect_refs(value, refs)
