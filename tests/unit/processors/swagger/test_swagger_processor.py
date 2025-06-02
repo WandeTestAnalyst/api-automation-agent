@@ -1,5 +1,5 @@
 import yaml
-from src.processors.swagger import APIDefinitionSplitter, APIDefinitionMerger
+from src.processors.swagger import APIDefinitionSplitter, APIDefinitionMerger, APIComponentsFilter
 from src.processors.swagger_processor import SwaggerProcessor
 from src.services.file_service import FileService
 from src.configuration.config import Config
@@ -10,7 +10,20 @@ def test_swagger_processor_rebuilds_full_path_definition():
     spec = {
         "openapi": "3.0.0",
         "info": {"title": "Test", "version": "1.0"},
-        "paths": {"/api/v1/items": {"get": {"responses": {"200": {"description": "ok"}}}}},
+        "paths": {
+            "/api/v1/items": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "content": {
+                                "application/json": {"schema": {"$ref": "#/components/schemas/Item"}}
+                            },
+                        }
+                    }
+                }
+            }
+        },
         "servers": [{"url": "https://api.example.com"}],
         "components": {
             "schemas": {
@@ -26,11 +39,13 @@ def test_swagger_processor_rebuilds_full_path_definition():
     base_yaml, parts = splitter.split(spec)
     merger = APIDefinitionMerger()
     merged = merger.merge(parts)
+    components_filter = APIComponentsFilter()
 
     processor = SwaggerProcessor(
         file_loader=FileService(),
         splitter=splitter,
         merger=merger,
+        components_filter=components_filter,
         file_service=FileService(),
         config=Config(),
     )
@@ -64,11 +79,13 @@ def test_swagger_processor_rebuilds_full_verb_definition():
     base_yaml, parts = splitter.split(spec)
     merger = APIDefinitionMerger()
     merged = merger.merge(parts)
+    components_filter = APIComponentsFilter()
 
     processor = SwaggerProcessor(
         file_loader=FileService(),
         splitter=splitter,
         merger=merger,
+        components_filter=components_filter,
         file_service=FileService(),
         config=Config(),
     )
