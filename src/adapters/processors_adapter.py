@@ -21,13 +21,14 @@ class ProcessorsAdapter(containers.DeclarativeContainer):
     file_loader = providers.Factory(FileLoader)
     splitter = providers.Factory(APIDefinitionSplitter)
     merger = providers.Factory(APIDefinitionMerger)
-    component_filter = providers.Factory(APIComponentsFilter)
+    components_filter = providers.Factory(APIComponentsFilter)
 
     swagger_processor = providers.Factory(
         SwaggerProcessor,
         file_loader=file_loader,
         splitter=splitter,
         merger=merger,
+        components_filter=components_filter,
         file_service=file_service,
         config=config,
     )

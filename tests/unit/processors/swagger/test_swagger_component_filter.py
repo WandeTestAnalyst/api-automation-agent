@@ -231,6 +231,7 @@ def test_filter_on_duplicated_schema_refs():
                     },
                 }
             },
+            "servers": [{"url": "https://api.example.com"}],
             "/items/{id}": {
                 "get": {
                     "responses": {
@@ -244,6 +245,7 @@ def test_filter_on_duplicated_schema_refs():
                 }
             },
         },
+        "servers": [{"url": "https://api.example.com"}],
         "components": {
             "schemas": {
                 "Item": {"type": "object", "properties": {"id": {"type": "integer"}}},
@@ -281,6 +283,7 @@ def test_filter_schemas_on_multiple_components():
                 }
             }
         },
+        "servers": [{"url": "https://api.example.com"}],
         "components": {
             "schemas": {
                 "Item": {"type": "object", "properties": {"id": {"type": "integer"}}},
@@ -319,6 +322,7 @@ def test_filter_schemas_on_multiple_components():
                 }
             }
         },
+        "servers": [{"url": "https://api.example.com"}],
         "components": {
             "schemas": {
                 "Item": {"type": "object", "properties": {"id": {"type": "integer"}}},
@@ -341,8 +345,61 @@ def test_filter_schemas_on_multiple_components():
 # def test_filter_on_duplicated_schema():
 #     assert False, "This test is not implemented yet"
 
-# def test_filter_on_no_schemas():
-#     assert False, "This test is not implemented yet"
+
+def test_filter_on_no_schemas():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "A single item",
+                            "content": {
+                                "application/json": {"schema": {"$ref": "#/components/schemas/Item"}}
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        "servers": [{"url": "https://api.example.com"}],
+        "components": {},
+    }
+
+    components_filter = APIComponentsFilter()
+    filtered_yaml_dict = components_filter.filter_schemas(spec)
+
+    assert filtered_yaml_dict == spec
+
+
+def test_filter_on_no_components():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "A single item",
+                            "content": {
+                                "application/json": {"schema": {"$ref": "#/components/schemas/Item"}}
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        "servers": [{"url": "https://api.example.com"}],
+    }
+
+    components_filter = APIComponentsFilter()
+    filtered_yaml_dict = components_filter.filter_schemas(spec)
+
+    assert filtered_yaml_dict == spec
+
 
 # def test_filter_on_empty_spec():
 #     assert False, "This test is not implemented yet"
