@@ -19,12 +19,16 @@ class APIComponentsFilter:
             return filtered_spec
         components = filtered_spec.get("components", {})
 
-        used_refs = self.collect_refs(filtered_spec.get("paths", {}))
+        # used_refs = self.collect_refs(filtered_spec.get("paths", {}))
         if "schemas" not in components:
             self.logger.info("No schemas found in the components.")
             return filtered_spec
 
         self.logger.info("Filtering schemas from components...")
+
+        # WIP
+        used_refs = self.collect_refs(filtered_spec)
+
         filtered_schemas = self.collect_used_schemas(components.get("schemas", {}), used_refs)
 
         # TODO: Create a method to handle this separately.
@@ -36,20 +40,24 @@ class APIComponentsFilter:
         self.logger.info("Successfully filtered schemas.")
         return filtered_spec
 
-    def collect_refs(self, node: Any, refs: List[str] = None) -> List[str]:
-        """Recursively collects all $ref in the API paths."""
+    def collect_refs(self, api_def: Any, refs: set = None) -> set:
+        """Recursively collects all $ref from the API definition."""
         if refs is None:
-            refs = []
+            refs = set()
 
-        if isinstance(node, dict):
-            for key, value in node.items():
-                if key == "$ref":
-                    refs.append(value)
+        if isinstance(api_def, dict):
+            for key, value in api_def.items():
+                if key == "$ref" and isinstance(value, str):
+                    refs.add(value)
                 else:
                     self.collect_refs(value, refs)
+        elif isinstance(api_def, list):
+            for item in api_def:
+                self.collect_refs(item, refs)
+
         return refs
 
-    def collect_used_schemas(self, schemas: Dict[str, Any], used_refs: List[str]) -> Dict[str, Any]:
+    def collect_used_schemas(self, schemas: Dict[str, Any], used_refs: set) -> Dict[str, Any]:
         """Returns only the referenced schemas."""
         collected_schemas = {}
 

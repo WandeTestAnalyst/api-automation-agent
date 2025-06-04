@@ -342,10 +342,6 @@ def test_filter_schemas_on_multiple_components():
     assert filtered_yaml_dict == expected_filtered_spec
 
 
-# def test_filter_on_duplicated_schema():
-#     assert False, "This test is not implemented yet"
-
-
 def test_filter_on_no_schemas():
     spec = {
         "openapi": "3.0.0",
@@ -402,4 +398,126 @@ def test_filter_on_no_components():
 
 
 # def test_filter_on_empty_spec():
+#     assert False, "This test is not implemented yet"
+
+# def test_filter_on_duplicated_schema():
+#     assert False, "This test is not implemented yet"
+
+
+def test_filter_on_nested_refs():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "A single item",
+                            "content": {
+                                "application/json": {"schema": {"$ref": "#/components/schemas/Item"}}
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "Item": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "nestedItem": {"$ref": "#/components/schemas/NestedItem"},
+                    },
+                },
+                "NestedItem": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "nestedItem2": {"$ref": "#/components/schemas/NestedItem2"},
+                    },
+                },
+                "NestedItem2": {"type": "object", "properties": {"id": {"type": "integer"}}},
+                "UnusedSchema": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
+        },
+    }
+
+    components_filter = APIComponentsFilter()
+    filtered_yaml_dict = components_filter.filter_schemas(spec)
+
+    assert "components" in filtered_yaml_dict
+    assert "schemas" in filtered_yaml_dict["components"]
+    assert len(filtered_yaml_dict["components"]["schemas"]) == 3
+    assert "Item" in filtered_yaml_dict["components"]["schemas"]
+    assert "NestedItem" in filtered_yaml_dict["components"]["schemas"]
+    assert "NestedItem2" in filtered_yaml_dict["components"]["schemas"]
+    assert "UnusedSchema" not in filtered_yaml_dict["components"]["schemas"]
+
+
+def test_filter_on_unused_schemas_with_nested_refs():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "A single item",
+                            "content": {
+                                "application/json": {"schema": {"$ref": "#/components/schemas/Item"}}
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "Item": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "nestedItem": {"$ref": "#/components/schemas/NestedItem"},
+                    },
+                },
+                "NestedItem": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "nestedItem2": {"$ref": "#/components/schemas/NestedItem2"},
+                    },
+                },
+                "NestedItem2": {"type": "object", "properties": {"id": {"type": "integer"}}},
+                "UnusedSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "unusedSchema2": {"$ref": "#/components/schemas/UnusedSchema2"},
+                    },
+                },
+                "UnusedSchema2": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
+        },
+    }
+
+    components_filter = APIComponentsFilter()
+    filtered_yaml_dict = components_filter.filter_schemas(spec)
+
+    assert "components" in filtered_yaml_dict
+    assert "schemas" in filtered_yaml_dict["components"]
+    assert len(filtered_yaml_dict["components"]["schemas"]) == 3
+    assert "Item" in filtered_yaml_dict["components"]["schemas"]
+    assert "NestedItem" in filtered_yaml_dict["components"]["schemas"]
+    assert "NestedItem2" in filtered_yaml_dict["components"]["schemas"]
+    assert "UnusedSchema" not in filtered_yaml_dict["components"]["schemas"]
+    assert "UnusedSchema2" not in filtered_yaml_dict["components"]["schemas"]
+
+
+# def test_filter_on_ref_inside_schema():
+#     assert False, "This test is not implemented yet"
+
+# def test_filter_on_ref_inside_request_body():
 #     assert False, "This test is not implemented yet"
