@@ -19,19 +19,15 @@ class APIComponentsFilter:
             return filtered_spec
         components = filtered_spec.get("components", {})
 
-        # used_refs = self.collect_refs(filtered_spec.get("paths", {}))
+        refs_on_paths = self.collect_refs(filtered_spec.get("paths", {}))
         if "schemas" not in components:
             self.logger.info("No schemas found in the components.")
             return filtered_spec
 
         self.logger.info("Filtering schemas from components...")
 
-        # WIP
-        used_refs = self.collect_refs(filtered_spec)
+        filtered_schemas = self.collect_used_schemas(components.get("schemas", {}), refs_on_paths)
 
-        filtered_schemas = self.collect_used_schemas(components.get("schemas", {}), used_refs)
-
-        # TODO: Create a method to handle this separately.
         for component_name, component_data in components.items():
             if component_name != "schemas":
                 filtered_spec["components"][component_name] = component_data
@@ -57,12 +53,27 @@ class APIComponentsFilter:
 
         return refs
 
-    def collect_used_schemas(self, schemas: Dict[str, Any], used_refs: set) -> Dict[str, Any]:
+    def collect_used_schemas(self, schemas: Dict[str, Any], refs_on_paths: set) -> Dict[str, Any]:
         """Returns only the referenced schemas."""
-        collected_schemas = {}
+        used_schemas = {}
+        refs_to_check = list(refs_on_paths)
 
-        for schema_name, schema in schemas.items():
-            ref_string = f"#/components/schemas/{schema_name}"
-            if ref_string in used_refs:
-                collected_schemas[schema_name] = schema
-        return collected_schemas
+        while refs_to_check:
+            ref = refs_to_check.pop()
+            if not ref.startswith("#/components/schemas/"):
+                continue
+
+            schema_name = ref.split("/")[-1]
+            if schema_name in used_schemas:
+                continue
+
+            schema = schemas.get(schema_name)
+            if not schema:
+                continue
+
+            used_schemas[schema_name] = schema
+
+            nested_refs = self.collect_refs(schema)
+            refs_to_check.extend(nested_refs)
+
+        return used_schemas

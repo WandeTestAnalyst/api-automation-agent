@@ -397,13 +397,6 @@ def test_filter_on_no_components():
     assert filtered_yaml_dict == spec
 
 
-# def test_filter_on_empty_spec():
-#     assert False, "This test is not implemented yet"
-
-# def test_filter_on_duplicated_schema():
-#     assert False, "This test is not implemented yet"
-
-
 def test_filter_on_nested_refs():
     spec = {
         "openapi": "3.0.0",
@@ -516,8 +509,121 @@ def test_filter_on_unused_schemas_with_nested_refs():
     assert "UnusedSchema2" not in filtered_yaml_dict["components"]["schemas"]
 
 
-# def test_filter_on_ref_inside_schema():
-#     assert False, "This test is not implemented yet"
+def test_filter_with_no_paths():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "components": {"schemas": {"Item": {"type": "object", "properties": {"id": {"type": "integer"}}}}},
+    }
+    components_filter = APIComponentsFilter()
+    filtered = components_filter.filter_schemas(spec)
+    assert filtered["components"]["schemas"] == {}
 
-# def test_filter_on_ref_inside_request_body():
-#     assert False, "This test is not implemented yet"
+
+def test_filter_with_empty_schemas():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {},
+        "components": {"schemas": {}},
+    }
+    components_filter = APIComponentsFilter()
+    filtered = components_filter.filter_schemas(spec)
+    assert filtered["components"]["schemas"] == {}
+
+
+def test_filter_with_only_non_schema_components():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {},
+        "components": {
+            "parameters": {
+                "IdParam": {"name": "id", "in": "path", "required": True, "schema": {"type": "string"}}
+            }
+        },
+    }
+    components_filter = APIComponentsFilter()
+    filtered = components_filter.filter_schemas(spec)
+    assert "parameters" in filtered["components"]
+
+
+def test_filter_with_invalid_ref_format():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "Invalid ref",
+                            "content": {"application/json": {"schema": {"$ref": "InvalidRefFormat"}}},
+                        }
+                    }
+                }
+            }
+        },
+        "components": {"schemas": {"Item": {"type": "object"}}},
+    }
+    components_filter = APIComponentsFilter()
+    filtered = components_filter.filter_schemas(spec)
+    assert filtered["components"]["schemas"] == {}
+
+
+def test_filter_with_deeply_nested_refs():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "Nested ref",
+                            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/A"}}},
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "A": {"type": "object", "properties": {"b": {"$ref": "#/components/schemas/B"}}},
+                "B": {"type": "object", "properties": {"c": {"$ref": "#/components/schemas/C"}}},
+                "C": {"type": "object"},
+                "Unused": {"type": "object"},
+            }
+        },
+    }
+    components_filter = APIComponentsFilter()
+    filtered = components_filter.filter_schemas(spec)
+    assert set(filtered["components"]["schemas"].keys()) == {"A", "B", "C"}
+
+
+def test_filter_with_circular_refs():
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Test API", "version": "1.0.0"},
+        "paths": {
+            "/items": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "Circular ref",
+                            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/A"}}},
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "A": {"type": "object", "properties": {"b": {"$ref": "#/components/schemas/B"}}},
+                "B": {"type": "object", "properties": {"a": {"$ref": "#/components/schemas/A"}}},
+            }
+        },
+    }
+    components_filter = APIComponentsFilter()
+    filtered = components_filter.filter_schemas(spec)
+    assert set(filtered["components"]["schemas"].keys()) == {"A", "B"}
