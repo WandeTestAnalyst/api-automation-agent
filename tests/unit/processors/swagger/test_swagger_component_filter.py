@@ -249,7 +249,6 @@ def test_filter_on_duplicated_schema_refs():
         "components": {
             "schemas": {
                 "Item": {"type": "object", "properties": {"id": {"type": "integer"}}},
-                "Item2": {"type": "object", "properties": {"id": {"type": "string"}}},
                 "UnusedSchema": {"type": "object", "properties": {"name": {"type": "string"}}},
             }
         },
