@@ -284,7 +284,7 @@ When adding new tests:
 4. Add appropriate assertions to verify behavior
 5. Consider edge cases and error scenarios
 
-## Performance Benchmarking
+## Benchmarks
 
 This project includes a benchmark tool designed to evaluate the performance of different Large Language Models (LLMs) in generating API test frameworks using this agent. It automates running the agent against an OpenAPI specification for various LLMs and collects quantifiable metrics.
 

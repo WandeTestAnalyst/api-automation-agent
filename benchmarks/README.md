@@ -117,15 +117,9 @@ Upon completion, the benchmark tool generates a detailed JSON report and prints 
 
 By comparing these metrics across different LLMs, you can gain insights into their relative strengths and weaknesses for the task of API test generation within this specific agent's framework.
 
-## Troubleshooting
-
-*   **API Key Errors**: Ensure your `.env` file is correctly set up in the project root and contains valid API keys for the LLMs you are testing.
-*   **Dependency Issues**: Double-check that all Python and Node.js dependencies are installed.
-*   **File Path Errors**: Verify that the path to your OpenAPI specification is correct.
-*   **TypeScript Compilation Errors**: If many files are skipped, it might point to systemic issues in how an LLM generates code. Review the generated files in the output directory for that LLM. 
 ## Test Coverage Benchmark
 
-The `coverage_benchmark.py` utility evaluates how closely a generated test framework matches a list of ideal tests. Ground truth data lives in YAML or JSON files under `benchmarks/test_coverage/ground_truths`.
+The `coverage_benchmark.py` utility evaluates how closely a generated test framework matches a list of ideal tests. Ground truth data lives in YAML files under `benchmarks/test_coverage/ground_truths`.
 
 To see available ground truth specifications and their endpoints:
 
@@ -133,14 +127,20 @@ To see available ground truth specifications and their endpoints:
 python benchmarks/test_coverage/coverage_benchmark.py list
 ```
 
-To run the benchmark for a specific endpoint and HTTP verb:
+To run the benchmark for a specific endpoint:
 
 ```bash
 python benchmarks/test_coverage/coverage_benchmark.py run \
     --ground-truth benchmarks/test_coverage/ground_truths/sample.yaml \
     --framework-path <path_to_generated_framework> \
     --endpoint /user \
-    --verb get
 ```
 
 The output shows the percentage of ideal tests covered and any extra tests that were generated but not listed in the ground truth.
+
+## Troubleshooting
+
+*   **API Key Errors**: Ensure your `.env` file is correctly set up in the project root and contains valid API keys for the LLMs you are testing.
+*   **Dependency Issues**: Double-check that all Python and Node.js dependencies are installed.
+*   **File Path Errors**: Verify that the path to your OpenAPI specification is correct.
+*   **TypeScript Compilation Errors**: If many files are skipped, it might point to systemic issues in how an LLM generates code. Review the generated files in the output directory for that LLM.

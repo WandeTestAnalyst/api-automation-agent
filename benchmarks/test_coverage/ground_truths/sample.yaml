@@ -1,7 +1,30 @@
-spec: sample
 endpoints:
-  /user:
-    get:
-      - "User Suite::should get user"
-    post:
-      - "User Suite::should create user"
+  /users:
+    - verb: "GET"
+      suite: "Get User"
+      tests:
+        - "Should get user"
+        - "Should return 404 for non-existent user"
+        - "Should return 400 for invalid user id"
+        - "Should return user with correct fields"
+    - verb: "POST"
+      suite: "Create User"
+      tests:
+        - "Should create user"
+        - "Should return 400 for invalid user data"
+        - "Should return 409 for duplicate email"
+        - "Should create user with required fields"
+    - verb: "PUT"
+      suite: "Update User"
+      tests:
+        - "Should update user"
+        - "Should return 404 for non-existent user"
+        - "Should return 400 for invalid update data"
+        - "Should update only provided fields"
+    - verb: "DELETE"
+      suite: "Delete User"
+      tests:
+        - "Should delete user"
+        - "Should return 404 for non-existent user"
+        - "Should return 403 for unauthorized deletion"
+        - "Should cascade delete related resources"

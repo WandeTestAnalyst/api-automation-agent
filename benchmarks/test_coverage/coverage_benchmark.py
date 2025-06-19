@@ -2,30 +2,20 @@ import argparse
 import json
 import os
 import re
-import yaml
 from typing import Dict, List
 
 GROUND_TRUTHS_DIR = os.path.join(os.path.dirname(__file__), "ground_truths")
 
+# TODO: Need to adapt this to read what is actually in the ground truth file, and extract the endpoints
+#       and verbs from there.
+#       The benchmark should be able to receive the ground truth file and execute the coverage benchmark
+#       for each endpoint and verb.
+#       I need to implement the model graded eval.
 
-def load_ground_truth(path: str) -> Dict:
+
+def load_ground_truth(path: str) -> str:
     with open(path, "r") as f:
-        if path.endswith((".yml", ".yaml")):
-            return yaml.safe_load(f)
-        return json.load(f)
-
-
-def list_available_ground_truths(directory: str = GROUND_TRUTHS_DIR) -> List[Dict]:
-    ground_truths = []
-    if not os.path.isdir(directory):
-        return ground_truths
-    for file in os.listdir(directory):
-        if file.endswith((".yml", ".yaml", ".json")):
-            data = load_ground_truth(os.path.join(directory, file))
-            ground_truths.append(
-                {"file": file, "spec": data.get("spec"), "endpoints": list(data.get("endpoints", {}).keys())}
-            )
-    return ground_truths
+        return f.read()
 
 
 def sanitize_endpoint(endpoint: str) -> str:
@@ -41,9 +31,9 @@ def parse_test_file(path: str) -> List[str]:
     return [f"{suite}::{t}" for t in tests]
 
 
-def collect_tests(framework_path: str, endpoint: str, verb: str) -> List[str]:
-    tests_path = os.path.join(framework_path, "src", "tests", sanitize_endpoint(endpoint))
-    pattern = f"{verb.upper()}-*.spec.ts"
+def collect_tests(framework_path: str) -> List[str]:
+    tests_path = os.path.join(framework_path, "src", "tests")
+    pattern = "*.spec.ts"
     collected: List[str] = []
     if not os.path.isdir(tests_path):
         return collected
@@ -53,7 +43,7 @@ def collect_tests(framework_path: str, endpoint: str, verb: str) -> List[str]:
     return collected
 
 
-def calculate_coverage(ground_truth_tests: List[str], actual_tests: List[str]) -> Dict:
+def calculate_coverage(ground_truth_tests: str, actual_tests: List[str]) -> Dict:
     gt_set = set(ground_truth_tests)
     actual_set = set(actual_tests)
     matched = gt_set & actual_set
@@ -62,36 +52,8 @@ def calculate_coverage(ground_truth_tests: List[str], actual_tests: List[str]) -
     return {"coverage_percent": coverage, "extra_tests": sorted(extra), "matched_tests": sorted(matched)}
 
 
-def run(args: argparse.Namespace):
-    if args.command == "list":
-        for item in list_available_ground_truths():
-            print(f"{item['file']}: spec={item['spec']}, endpoints={', '.join(item['endpoints'])}")
-        return
-
-    data = load_ground_truth(args.ground_truth)
-    endpoint_data = data.get("endpoints", {}).get(args.endpoint, {})
-    gt_tests = endpoint_data.get(args.verb.lower(), [])
-    actual_tests = collect_tests(args.framework_path, args.endpoint, args.verb)
-    results = calculate_coverage(gt_tests, actual_tests)
+def run_test_design_coverage(args: argparse.Namespace):
+    ground_truth_tests = load_ground_truth(args.ground_truth)
+    actual_tests = collect_tests(args.framework_path)
+    results = calculate_coverage(ground_truth_tests, actual_tests)
     print(json.dumps(results, indent=2))
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Test Coverage Benchmark")
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    sub.add_parser("list", help="List available ground truths")
-
-    run_parser = sub.add_parser("run", help="Run coverage benchmark")
-    run_parser.add_argument("--ground-truth", required=True, help="Path to ground truth YAML/JSON")
-    run_parser.add_argument("--framework-path", required=True, help="Path to generated framework root")
-    run_parser.add_argument("--endpoint", required=True, help="Endpoint to evaluate")
-    run_parser.add_argument("--verb", required=True, help="HTTP verb to evaluate")
-
-    return parser
-
-
-if __name__ == "__main__":
-    parser = build_parser()
-    args = parser.parse_args()
-    run(args)
