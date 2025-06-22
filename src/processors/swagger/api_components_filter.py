@@ -24,8 +24,6 @@ class APIComponentsFilter:
             self.logger.info("No schemas found in the components.")
             return filtered_spec
 
-        self.logger.info("Filtering schemas from components...")
-
         filtered_schemas = self.collect_used_schemas(components.get("schemas", {}), refs_on_paths)
 
         for component_name, component_data in components.items():
@@ -33,7 +31,6 @@ class APIComponentsFilter:
                 filtered_spec["components"][component_name] = component_data
 
         filtered_spec["components"]["schemas"] = filtered_schemas
-        self.logger.info("Successfully filtered schemas.")
         return filtered_spec
 
     def collect_refs(self, api_def: Any, refs: set = None) -> set:
