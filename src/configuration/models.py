@@ -8,11 +8,11 @@ class ModelCost(NamedTuple):
 
 
 class Model(Enum):
-    GPT_4_O = ("gpt-4o", ModelCost(input_cost_per_million_tokens=5.5, output_cost_per_million_tokens=10.0))
+    GPT_4_O = ("gpt-4o", ModelCost(input_cost_per_million_tokens=2.5, output_cost_per_million_tokens=10.0))
     GPT_4_1 = ("gpt-4.1", ModelCost(input_cost_per_million_tokens=2.0, output_cost_per_million_tokens=8.0))
     O3 = (
         "o3",
-        ModelCost(input_cost_per_million_tokens=10.0, output_cost_per_million_tokens=40.0),
+        ModelCost(input_cost_per_million_tokens=2.0, output_cost_per_million_tokens=8.0),
     )
     O4_MINI = ("o4-mini", ModelCost(input_cost_per_million_tokens=1.1, output_cost_per_million_tokens=4.4))
     CLAUDE_SONNET_3_5 = (
