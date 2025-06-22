@@ -14,7 +14,6 @@ Your task is to create the Service Model TypeScript file for the path documented
 - If additional models are required, such as Request or Response models, create separate TypeScript files for them and import them into the Service Model class. Don't declare the models interfaces inside the service model file.
 - Models must be placed inside /src/models/requests or /src/models/responses folders in the current working directory.
 - For request models, declare all their properties as optional.
-- Include ".js" in the import statements for modules.
 - You will be penalized for every TS or eslint error.
 
 ## Output
@@ -63,7 +62,7 @@ When you create a Service Model, you extend `ServiceBase` and define methods spe
 Here's a simple example of a service model:
 
 ```tsx
-import {{ ServiceBase }} from "../../base/ServiceBase.js"; // Import the base class
+import {{ ServiceBase }} from "../../base/ServiceBase.ts"; // Import the base class
 
 export class BookingService extends ServiceBase {{
   constructor() {{
@@ -95,6 +94,9 @@ export interface BookingModel {{
   }};
   additionalneeds?: string | undefined;
 }}
+
+// Runtime export for ESM compatibility
+export const BookingModel = {{}} as BookingModel;
 ```
 
 #### Framework folder structure
@@ -137,9 +139,9 @@ API-FRAMEWORK
 
 ```tsx
 import {{ AxiosResponse, type AxiosRequestConfig }} from "axios";
-import {{ ApiClient }} from "./ApiClient.js";
-import {{ Response }} from "../models/responses/Response.js";
-import {{ SessionManager }} from "./SessionManager.js";
+import {{ ApiClient }} from "./ApiClient.ts";
+import {{ Response }} from "../models/responses/Response.ts";
+import {{ SessionManager }} from "./SessionManager.ts";
 
 export class ServiceBase {{
   private api: ApiClient;
@@ -292,9 +294,9 @@ export class ServiceBase {{
 ##### Service Model example
 
 ```tsx
-import {{ ServiceBase }} from "../../base/ServiceBase.js";
-import {{ BookingModel }} from "../requests/BookingModel.js";
-import {{ Response }} from "../responses/Response.js";
+import {{ ServiceBase }} from "../../base/ServiceBase.ts";
+import {{ BookingModel }} from "../requests/BookingModel.ts";
+import {{ Response }} from "../responses/Response.ts";
 
 export class BookingService extends ServiceBase {{
   constructor() {{
@@ -354,6 +356,9 @@ export interface BookingModel {{
   }};
   additionalneeds?: string | undefined;
 }}
+
+// Runtime export for ESM compatibility
+export const BookingModel = {{}} as BookingModel;
 ```
 
 ## OpenAPI Definition

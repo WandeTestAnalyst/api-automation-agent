@@ -17,7 +17,6 @@ Your task is to create additional API automation test code based on an initial t
 - Ensure that each call to service methods includes the appropriate response model as the generic type T. If the response type is unknown or unnecessary, pass null. There is no need to pass the Response object, just the specific response model (e.g. bookingService.getBooking<BookingModel>(bookingId);)
 - Use optional chaining (?.) when accessing properties that could potentially be undefined (e.g., response.data?.id.should.equal(orderId);) to avoid errors during runtime.
 - Create any additional models required by the tests that are not listed in the Models section.
-- Use .js extensions in all import statements.
 - You will be penalized for every TS or ESLint error.
 
 ## Output
@@ -30,8 +29,8 @@ Make sure the output is only the function call and nothing else.
 ## Test examples
 
 ```tsx
-import {{ BookingService }} from "../../models/services/BookingService.js";
-import {{ BookingModel }} from "../../models/requests/BookingModel.js";
+import {{ BookingService }} from "../../models/services/BookingService.ts";
+import {{ BookingModel }} from "../../models/requests/BookingModel.ts";
 import 'chai/register-should.js';
 
 describe("Add Booking", () => {{
@@ -96,9 +95,9 @@ describe("Add Booking", () => {{
 ```
 
 ```tsx
-import {{ BookingModel }} from "../../models/requests/BookingModel.js";
-import {{ BookingResponse }} from "../../models/responses/BookingResponse.js";
-import {{ BookingService }} from "../../models/services/BookingService.js";
+import {{ BookingModel }} from "../../models/requests/BookingModel.ts";
+import {{ BookingResponse }} from "../../models/responses/BookingResponse.ts";
+import {{ BookingService }} from "../../models/services/BookingService.ts";
 import 'chai/register-should.js';
 
 describe("Get Booking", () => {{

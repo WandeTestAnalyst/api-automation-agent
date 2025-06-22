@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { ApiClientBase } from "./ApiClientBase.js";
+import { ApiClientBase } from "./ApiClientBase.ts";
 
 export class ApiClient extends ApiClientBase {
   private static classInstance?: ApiClient;

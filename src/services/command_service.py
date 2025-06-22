@@ -245,6 +245,7 @@ def build_typescript_compiler_command(files: List[FileSpec]) -> str:
         "--noUnusedLocals "
         "--noUnusedParameters "
         "--checkJs "
+        "--allowImportingTsExtensions "
         "--noEmit "
         "--strictNullChecks false "
         "--excludeDirectories node_modules"

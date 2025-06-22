@@ -1,7 +1,7 @@
 import { AxiosResponse, type AxiosRequestConfig } from "axios";
-import { ApiClient } from "./ApiClient.js";
-import { Response } from "../models/responses/Response.js";
-import { SessionManager } from "./SessionManager.js";
+import { ApiClient } from "./ApiClient.ts";
+import { Response } from "../models/responses/Response.ts";
+import { SessionManager } from "./SessionManager.ts";
 
 export class ServiceBase {
   private api: ApiClient;

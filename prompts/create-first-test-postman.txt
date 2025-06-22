@@ -28,7 +28,6 @@ Your task is to create API automation test code based on a JSON specification fi
 - The files should be error-free TypeScript files, adhering to TypeScript and ESLint standards.
 - Use optional chaining (?.) in the test assertions or any place where object properties might be undefined (e.g., response.data?.id.should.equal(orderId);) to avoid potential undefined errors.
 - Create any other required model by the test that is not included in the Models section.
-- Include ".js" in the import statements.
 - You will be penalized for every TS or ESLint error.
 
 ## Output
@@ -78,7 +77,7 @@ When you create a Service Model, you extend `ServiceBase` and define methods spe
 Here's a simple example of a service model:
 
 ```tsx
-import {{ ServiceBase }} from "../../base/ServiceBase.js"; // Import the base class
+import {{ ServiceBase }} from "../../base/ServiceBase.ts"; // Import the base class
 
 export class BookingService extends ServiceBase {{
   constructor() {{
@@ -110,6 +109,9 @@ export interface BookingModel {{
   }};
   additionalneeds?: string | undefined;
 }}
+
+// Runtime export for ESM compatibility
+export const BookingModel = {{}} as BookingModel;
 ```
 
 #### Tests
@@ -181,8 +183,8 @@ API-FRAMEWORK
 ```
 ## Test examples
 ```typescript
-import {{ BookingService }} from "../../models/services/BookingService.js";
-import {{ BookingModel }} from "../../models/requests/BookingModel.js";
+import {{ BookingService }} from "../../models/services/BookingService.ts";
+import {{ BookingModel }} from "../../models/requests/BookingModel.ts";
 import 'chai/register-should.js';
 
 describe("Add Booking", () => {{

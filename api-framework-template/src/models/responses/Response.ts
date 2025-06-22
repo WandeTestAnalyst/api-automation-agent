@@ -4,3 +4,6 @@ export interface Response<T> {
   headers: Record<string, string | number | boolean | string[]>;
   responseTime: number;
 }
+
+// Runtime export for ESM compatibility
+export const Response = {} as Response<unknown>;
