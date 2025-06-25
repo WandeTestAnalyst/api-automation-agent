@@ -138,8 +138,8 @@ class PostmanProcessor(APIProcessor):
     def _create_run_order_file(self, destination_folder: str, api_definition: APIDefinition):
         lines = ["// This file runs the tests in order"]
         for definition in api_definition.definitions:
-            if isinstance(definition, APIVerb):
-                lines.append(f'import "./{definition.path}.spec.ts";')
+            if isinstance(definition, RequestData):
+                lines.append(f'import "./{definition.file_path}.spec.ts";')
         file_spec = FileSpec(path="runTestsInOrder.js", fileContent="\n".join(lines))
         self.file_service.create_files(destination_folder, [file_spec])
         self.logger.info(f"Created runTestsInOrder.js at {destination_folder}")
