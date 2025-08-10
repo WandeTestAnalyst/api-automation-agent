@@ -66,6 +66,7 @@ This project supports both Anthropic and OpenAI language models:
 
 **OpenAI**
 
+- GPT-5 (gpt-5)
 - GPT-4o (gpt-4o)
 - GPT-4.1 (gpt-4.1)
 - O3 (o3)
