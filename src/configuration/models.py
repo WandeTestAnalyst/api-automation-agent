@@ -10,6 +10,7 @@ class ModelCost(NamedTuple):
 class Model(Enum):
     GPT_4_O = ("gpt-4o", ModelCost(input_cost_per_million_tokens=2.5, output_cost_per_million_tokens=10.0))
     GPT_4_1 = ("gpt-4.1", ModelCost(input_cost_per_million_tokens=2.0, output_cost_per_million_tokens=8.0))
+    GPT_5 = ("gpt-5", ModelCost(input_cost_per_million_tokens=1.25, output_cost_per_million_tokens=10.0))
     O3 = (
         "o3",
         ModelCost(input_cost_per_million_tokens=2.0, output_cost_per_million_tokens=8.0),

@@ -46,7 +46,7 @@ class CommandService:
             Tuple[bool, str]: Success status and command output
         """
         try:
-            self.logger.info(f"Running command: {command}")
+            self.logger.debug(f"Running command: {command}")
             process = subprocess.Popen(
                 command,
                 cwd=cwd or self.config.destination_folder,
